@@ -1,0 +1,14 @@
+# Optional / recommended packages for full BIOCORE AI functionality
+plotly
+kaleido
+fpdf
+mediapipe
+opencv-python
+shap
+xgboost
+lightgbm
+scikit-learn
+pandas
+wfdb
+matplotlib
+numpy

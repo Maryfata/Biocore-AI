@@ -1,0 +1,13 @@
+Requirement already satisfied: plotly in C:\Users\luisn\AppData\Local\Programs\Python\Python313\Lib\site-packages (6.7.0)
+Collecting plotly
+  Downloading plotly-6.8.0-py3-none-any.whl.metadata (9.0 kB)
+Requirement already satisfied: narwhals>=1.15.1 in C:\Users\luisn\AppData\Local\Programs\Python\Python313\Lib\site-packages (from plotly) (2.22.0)
+Requirement already satisfied: packaging in C:\Users\luisn\AppData\Local\Programs\Python\Python313\Lib\site-packages (from plotly) (26.2)
+Downloading plotly-6.8.0-py3-none-any.whl (9.9 MB)
+   ---------------------------------------- 9.9/9.9 MB 10.1 MB/s  0:00:01
+Installing collected packages: plotly
+  Attempting uninstall: plotly
+    Found existing installation: plotly 6.7.0
+    Uninstalling plotly-6.7.0:
+      Successfully uninstalled plotly-6.7.0
+Successfully installed plotly-6.8.0

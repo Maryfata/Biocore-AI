@@ -1,0 +1,90 @@
+:root {
+    color-scheme: dark;
+    font-family: Inter, system-ui, sans-serif;
+}
+
+body {
+    background: radial-gradient(circle at top, #08111c 0%, #081826 45%, #02070f 100%);
+    color: #8ecae6;
+}
+
+section[data-testid='stSidebar'] {
+    background: linear-gradient(180deg, #041427 0%, #091f38 100%) !important;
+    color: #eef5ff !important;
+}
+
+[data-testid='stSidebar'] .css-1d391kg,
+[data-testid='stSidebar'] span,
+[data-testid='stSidebar'] h1,
+[data-testid='stSidebar'] h2,
+[data-testid='stSidebar'] h3,
+[data-testid='stSidebar'] h4 {
+    color: #eef5ff !important;
+}
+
+.stButton>button,
+[data-testid='stButton'] button {
+    background: linear-gradient(135deg, #1d72e8 0%, #0cb9dd 100%) !important;
+    color: #ffffff !important;
+    border-radius: 16px !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    box-shadow: 0 18px 32px rgba(0, 0, 0, 0.22) !important;
+}
+
+.stButton>button:hover,
+[data-testid='stButton'] button:hover {
+    background: linear-gradient(135deg, #22a0fb 0%, #42d7ff 100%) !important;
+}
+
+pre,
+code,
+.stCodeBlock,
+.stJson,
+.stDataFrame,
+.css-k1vhr4 {
+    background: rgba(8, 18, 35, 0.95) !important;
+    color: #f0f9ff !important;
+    border-radius: 18px !important;
+    border: 1px solid rgba(255, 255, 255, 0.10) !important;
+}
+
+input,
+textarea,
+select {
+    background: rgba(255, 255, 255, 0.05) !important;
+    color: #f7fbff !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+a,
+button,
+label,
+span,
+div {
+    color: #8ecae6 !important;
+}
+
+.status-card,
+.status-pill,
+.stExpander,
+.stExpanderHeader,
+.stExpanderContent {
+    background: rgba(4, 13, 30, 0.88) !important;
+    color: #eef5ff !important;
+}
+
+.stMarkdown h1,
+.stMarkdown h2,
+.stMarkdown h3,
+.stMarkdown h4,
+.stMarkdown h5,
+.stMarkdown h6 {
+    color: #8ecae6 !important;
+}
+
+.stAppViewContainer,
+.block-container,
+.css-1offfwp,
+.css-18e3th9 {
+    background: transparent !important;
+}

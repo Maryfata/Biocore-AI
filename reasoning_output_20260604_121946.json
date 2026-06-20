@@ -1,0 +1,40 @@
+{
+  "findings": [
+    {
+      "name": "Dominancia Parasimpática",
+      "description": "Relación LF/HF baja: 0.82",
+      "confidence": 0.9,
+      "implications": [
+        "Activación del sistema parasimpático",
+        "Estado de calma y recuperación",
+        "Buena variabilidad parasimpática",
+        "Capacidad de relajación preservada"
+      ],
+      "clinical_relevance": "Indicador de buena recuperación y función vagal"
+    }
+  ],
+  "hypotheses": [],
+  "differential_diagnoses": [],
+  "risk_level": "bajo",
+  "autonomic_state": "equilibrio",
+  "risk_score": 0.0,
+  "main_narrative": "Análisis de 1 hallazgos fisiológicos detectados:\n  • Dominancia Parasimpática: Relación LF/HF baja: 0.82\n\nEvaluación de riesgo: BAJO\nPuntuación de riesgo: RiskLevel.BAJO (0-100 escala)",
+  "clinical_impression": "No se pueden generar conclusiones clínicas con los datos actuales.",
+  "recommendations": [
+    {
+      "category": "lifestyle",
+      "recommendation": "Mantener sueño regular (7-9 horas) y consistente",
+      "rationale": "El sueño restaura la función autonómica",
+      "urgency": "routine",
+      "evidence_level": "A"
+    },
+    {
+      "category": "lifestyle",
+      "recommendation": "Limitar cafeína y alcohol",
+      "rationale": "Ambos afectan negativamente la HRV",
+      "urgency": "routine",
+      "evidence_level": "B"
+    }
+  ],
+  "warnings": []
+}

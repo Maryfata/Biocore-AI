@@ -1,0 +1,2 @@
+Requirement already satisfied: scipy in C:\Users\luisn\AppData\Local\Programs\Python\Python313\Lib\site-packages (1.17.1)
+Requirement already satisfied: numpy<2.7,>=1.26.4 in C:\Users\luisn\AppData\Local\Programs\Python\Python313\Lib\site-packages (from scipy) (2.4.6)
