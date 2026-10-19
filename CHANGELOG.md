@@ -11,6 +11,7 @@
 - **HRV demo estable**: la serie sintética usaba `np.random` sin semilla y cambiaba en cada clic (SDNN/RMSSD "saltaban"). Semilla derivada de los parámetros + etiqueta de simulación.
 - **Quiz**: 4 opciones que estaban en inglés ("R predominant in V1"…) pasan a español; misma respuesta correcta.
 - **Digital Twin OS**: tarjetas de órganos de altura fija y selección con anillo interior (antes borde de 3 px): los botones "Explorar" quedan alineados.
+- **Servidor que dejaba de responder en Windows (visto en una PC real)**: Streamlit 1.66 sirve con Uvicorn sobre el ProactorEventLoop de Windows; si un cliente aborta una conexión a medio aceptar (WinError 64), `asyncio.proactor_events._start_serving` CIERRA el socket de escucha y `localhost:8501` muere con el proceso vivo. El detonante era el propio abridor del navegador (`Invoke-WebRequest -TimeoutSec 1` mientras la app arrancaba). Arreglo doble: `run_biocore.py` instala `WindowsSelectorEventLoopPolicy` antes de iniciar Streamlit (los lanzadores lo usan; `streamlit run app/main.py` sigue funcionando), y el abridor espera hasta 60 s por respuesta en vez de abortar. Además `server.address = "127.0.0.1"`: sin aviso del Firewall y sin exponer la app en la red local. `tests/test_run_biocore.py` cubre la política, el argv y que ningún lanzador vuelva a usar `-TimeoutSec 1`.
 - **Lanzadores**: `.streamlit/config.toml` con `server.headless = true` (la primera ejecución de Streamlit en una PC nueva pedía un email en la consola y no arrancaba hasta presionar Enter) y `browser.gatherUsageStats = false`; `RUN_BIOCORE.bat`/`run_local.ps1` abren el navegador en cuanto `/_stcore/health` responde.
 
 ### Nuevo: 🧮 Calculadoras Clínicas (Clinical Hub)
@@ -22,7 +23,7 @@
 - Fuente "Archivo CSV/TXT de RR" (`src/signals/hrv_tools.parse_rr_file`): un RR por línea, CSV con encabezado (usa la última columna), coma decimal europea, segundos → ms. Declara lo que hizo (líneas ignoradas, unidad, valores fuera de 300–2000 ms) y solo excluye fuera de rango si el usuario lo marca.
 - Gráfico de Poincaré con SD1/SD2 (Brennan et al. 2001), sin umbrales clínicos inventados.
 
-Pruebas nuevas: `tests/test_clinical_calculators.py` (89), `tests/test_hrv_tools.py` (8), `tests/test_new_features_2026_10.py` (13, AppTest con BD temporal del UPS).
+Pruebas nuevas: `tests/test_clinical_calculators.py` (89), `tests/test_hrv_tools.py` (8), `tests/test_new_features_2026_10.py` (13, AppTest con BD temporal del UPS), `tests/test_run_biocore.py` (5).
 
 ## 2026-10-19 — Tanda de funcionalidad y arranque: reportes PDF/imágenes, `.env`, fuga de engines, lanzadores
 

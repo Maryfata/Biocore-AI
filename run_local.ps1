@@ -46,7 +46,8 @@ if (-not (Test-Path ".env")) {
 
 Write-Host "Iniciando BIOCORE AI en http://localhost:8501 (Ctrl+C para cerrar)"
 Write-Host "El navegador se abrirá solo cuando la app esté lista."
-# Abre el navegador en cuanto el servidor responda (espera hasta 90 s).
-$opener = "for(`$i=0;`$i -lt 90;`$i++){try{Invoke-WebRequest -UseBasicParsing -TimeoutSec 1 http://localhost:8501/_stcore/health | Out-Null; Start-Process 'http://localhost:8501'; break}catch{Start-Sleep -Seconds 1}}"
+# Abre el navegador en cuanto el servidor responda (ver RUN_BIOCORE.bat: -TimeoutSec 60
+# para no abortar conexiones a medio aceptar).
+$opener = "for(`$i=0;`$i -lt 120;`$i++){try{Invoke-WebRequest -UseBasicParsing -TimeoutSec 60 http://127.0.0.1:8501/_stcore/health | Out-Null; Start-Process 'http://localhost:8501'; break}catch{Start-Sleep -Seconds 1}}"
 Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile', '-Command', $opener
-& $venvPython -m streamlit run app/main.py --server.port 8501
+& $venvPython run_biocore.py --server.port 8501

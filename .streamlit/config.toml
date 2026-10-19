@@ -47,6 +47,10 @@ textColor = "#e0e7ff"
 # cuenta en cuanto el servidor responde; con `streamlit run` manual, abre la
 # URL que se imprime (http://localhost:8501).
 headless = true
+# Solo esta computadora (127.0.0.1): sin aviso del Firewall de Windows y sin
+# exponer la app en la red local. Para verla desde otro dispositivo de tu red:
+#   python run_biocore.py --server.address 0.0.0.0
+address = "127.0.0.1"
 
 [browser]
 gatherUsageStats = false

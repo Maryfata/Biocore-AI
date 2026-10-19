@@ -63,8 +63,10 @@ cd biocore
 python -m venv .venv
 # Windows: .venv\Scripts\activate   ·   macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
-streamlit run app/main.py
+python run_biocore.py          # o: streamlit run app/main.py
 ```
+
+`run_biocore.py` es el arranque recomendado en Windows: usa el event loop de selectores, que evita que el servidor deje de escuchar si una conexión se corta a medias. La app escucha solo en esta computadora (`127.0.0.1`); para abrirla desde otro dispositivo de tu red: `python run_biocore.py --server.address 0.0.0.0`.
 
 La aplicación se abre en el navegador (<http://localhost:8501>). Los datos de señal se generan por escenario o se cargan desde archivos; ninguna clave de API es necesaria para el uso base.
 

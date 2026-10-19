@@ -28,6 +28,7 @@ adds pytest, linters and notebook tooling; `requirements_extra.txt` and
 ## Run the app
 
 ```bash
+python run_biocore.py        # recommended (Windows-safe event loop), or:
 streamlit run app/main.py
 ```
 

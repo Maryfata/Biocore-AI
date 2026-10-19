@@ -68,8 +68,10 @@ echo.
 echo Iniciando BIOCORE AI en http://localhost:8501  ^(Ctrl+C para cerrar^)
 echo El navegador se abrira solo cuando la app este lista.
 echo.
-REM Abre el navegador en cuanto el servidor responda (espera hasta 90 s).
-start "" /min powershell -NoProfile -Command "for($i=0;$i -lt 90;$i++){try{Invoke-WebRequest -UseBasicParsing -TimeoutSec 1 http://localhost:8501/_stcore/health | Out-Null; Start-Process 'http://localhost:8501'; break}catch{Start-Sleep -Seconds 1}}"
-"%VPY%" -m streamlit run app\main.py --server.port 8501
+REM Abre el navegador en cuanto el servidor responda. -TimeoutSec 60: si una
+REM consulta se abortara a medio aceptar, el servidor podria dejar de escuchar
+REM (ver run_biocore.py); los intentos rechazados solo esperan 1 s y reintentan.
+start "" /min powershell -NoProfile -Command "for($i=0;$i -lt 120;$i++){try{Invoke-WebRequest -UseBasicParsing -TimeoutSec 60 http://127.0.0.1:8501/_stcore/health | Out-Null; Start-Process 'http://localhost:8501'; break}catch{Start-Sleep -Seconds 1}}"
+"%VPY%" run_biocore.py --server.port 8501
 if errorlevel 1 pause
 endlocal
