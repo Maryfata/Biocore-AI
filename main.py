@@ -92,50 +92,28 @@ def launch_streamlit_dashboard():
 # IMPORT BIOMEDICAL SIGNAL MODULES
 # ============================================================================
 
-from src.signal_processing import (
+from src import (
     bandpass_filter,
     detect_r_peaks,
-    compute_rr_intervals
-)
-
-from src.feature_extraction import (
+    compute_rr_intervals,
     compute_psd,
-    extract_features
-)
-
-from src.machine_learning import (
+    extract_features,
     train_model,
-    predict_arrhythmia
-)
-
-from src.interpretability import (
+    predict_arrhythmia,
     interpret_features,
-    generate_clinical_report
-)
-
-from src.visualization import (
+    generate_clinical_report,
     plot_ecg_signal,
     plot_rr_intervals,
     plot_psd,
     plot_feature_comparison,
-    show_plots
-)
-
-# Educational and Clinical Modules
-from src.ecg_education import (
     ECGEducationPlatform,
-    create_educational_report
-)
-
-from src.risk_analysis import (
+    create_educational_report,
     AnalisisRiesgoClinico,
-    generar_reporte_riesgo_completo
-)
-
-from src.advanced_hrv import (
+    generar_reporte_riesgo_completo,
     AnalisisHRVAvanzado,
-    generar_reporte_hrv_completo
+    generar_reporte_hrv_completo,
 )
+from src.visualization import show_plots
 
 # Optional clinical visualization module (non-blocking)
 try:

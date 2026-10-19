@@ -29,11 +29,11 @@ def main():
     print("="*60)
     
     # Step 1: Upgrade pip
-    print("\n[1/5] Upgrading pip...")
+    print("\n[1/3] Upgrading pip...")
     run_command(f"{sys.executable} -m pip install --upgrade pip", "Upgrade pip")
-    
+
     # Step 2: Install core dependencies
-    print("\n[2/5] Installing core dependencies...")
+    print("\n[2/3] Installing core dependencies...")
     core_deps = [
         "streamlit>=1.25.0",
         "numpy>=1.20.0",
@@ -48,27 +48,11 @@ def main():
     for dep in core_deps:
         run_command(f"{sys.executable} -m pip install --upgrade {dep}", f"Install {dep}")
     
-    # Step 3: Install MediaPipe (problematic - install separately)
-    print("\n[3/5] Installing MediaPipe (separate step)...")
-    run_command(f"{sys.executable} -m pip uninstall -y mediapipe", "Remove old mediapipe")
-    run_command(f"{sys.executable} -m pip install --upgrade --force-reinstall mediapipe>=0.10.0", 
-                "Install fresh mediapipe")
-    
-    # Step 4: Install speech/gesture dependencies
-    print("\n[4/5] Installing voice & gesture dependencies...")
-    gesture_deps = [
-        "opencv-python>=4.8.0",
-        "SpeechRecognition>=3.10.0",
-        "pyaudio>=0.2.13",
-    ]
-    
-    for dep in gesture_deps:
-        run_command(f"{sys.executable} -m pip install --upgrade {dep}", f"Install {dep}")
-    
-    # Step 5: Install AI dependencies
-    print("\n[5/5] Installing AI dependencies...")
+    # Step 3: Install AI dependencies
+    print("\n[3/3] Installing AI dependencies...")
     ai_deps = [
-        "anthropic>=0.7.0",
+        "anthropic>=0.40.0",
+        "sqlalchemy>=2.0.0",
         "shap>=0.42.0",
         "lime>=0.2.0",
     ]
@@ -90,10 +74,8 @@ def main():
         ("plotly", None),
         ("sklearn", None),
         ("PIL", "Image"),
-        ("cv2", None),
-        ("mediapipe", "mp"),
-        ("speech_recognition", "sr"),
         ("anthropic", None),
+        ("sqlalchemy", None),
     ]
     
     failed = []
@@ -112,20 +94,9 @@ def main():
     print("\n" + "="*60)
     if failed:
         print(f"❌ {len(failed)} package(s) failed to import: {', '.join(failed)}")
-        print("\nTrying individual fixes...")
-        
-        for pkg in failed:
-            if pkg == "pyaudio":
-                print("\n⚠️  PyAudio may need manual installation:")
-                print("  On Windows: pip install pipwin; pipwin install pyaudio")
-                print("  On macOS: brew install portaudio; pip install pyaudio")
-                print("  On Linux: sudo apt-get install portaudio19-dev; pip install pyaudio")
-            elif pkg == "mediapipe":
-                print("\n⚠️  MediaPipe issues - trying with specific version...")
-                run_command(f"{sys.executable} -m pip install mediapipe==0.10.0", "Install specific mediapipe version")
     else:
         print("✅ All packages installed and verified successfully!")
-    
+
     print("\n" + "="*60)
     print("📝 NEXT STEPS:")
     print("="*60)
@@ -134,9 +105,7 @@ def main():
     print("   set ANTHROPIC_API_KEY=sk-your-key       # CMD")
     print("\n2. Run the app:")
     print("   streamlit run app/main.py")
-    print("\n3. Explore the new features:")
-    print("   - 🤖 JARVIS Copilot tab")
-    print("   - 🤲 Hands-Off Mode tab")
+    print("\n3. Explore: AI Hub → 🩺 Narrador Clínico (narrador clínico con IA real)")
     print("\n" + "="*60)
 
 if __name__ == "__main__":

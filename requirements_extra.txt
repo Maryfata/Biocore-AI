@@ -2,8 +2,6 @@
 plotly
 kaleido
 fpdf
-mediapipe
-opencv-python
 shap
 xgboost
 lightgbm

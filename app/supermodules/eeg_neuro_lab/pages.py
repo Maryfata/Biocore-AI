@@ -6,53 +6,70 @@ import os
 import runpy
 import streamlit as st
 
-MODULE_EMOJI = os.path.join(os.path.dirname(__file__).rsplit('supermodules', 1)[0], 'pages_legacy', '8_🧠_EEG-Neuro-Lab.py')
+from app.utils.design_system import render_module_header, render_section_header, render_error_state, render_empty_state
+
+# Reubicado (Tanda de eliminación de pages_legacy, Movimiento 1, 2026-07-13):
+# antes apuntaba a app/pages_legacy/8_🧠_EEG-Neuro-Lab.py — mismo contenido,
+# copiado tal cual a page_content.py junto a este archivo, sin cambiar una línea.
+MODULE_EMOJI = os.path.join(os.path.dirname(__file__), 'page_content.py')
 
 def render_views():
-    tabs = st.tabs(["Clínica", "Educativa", "Investigación", "IA", "Simulación", "Gemelo Digital"]) 
+    # Consolidación, Tanda 1 (2026-07-13): la pestaña "IA" se eliminó — era una
+    # sola línea estática ("Modelos para detección de crisis y herramientas
+    # explicables") sin ningún cálculo detrás (Art. I). La Vista Clínica real
+    # (tabs[0]) no se tocó.
+    # Capa 2, Fase 2.2, Ejecución 2 (2026-08-21): "Educativa"/"Investigación"/
+    # "Simulación"/"Gemelo Digital" retiradas -- eran header+write sin
+    # contenido (fachada de estructura, R1/R3); llenarlas habría requerido
+    # fabricar análisis de bandas/conectividad/simuladores que no existen hoy
+    # en el repo. Candidatas a contenido futuro, ver CHANGELOG.md.
+    # Fase 2.3 Tanda 3 (2026-08-29): título de módulo con el sistema
+    # compartido -- este módulo no tenía ninguno propio.
+    # Consolidación Visual Tanda 1 (2026-09-20): el subtítulo se movió aquí
+    # desde `page_content.py`, que dibujaba su propio "# 🧠 EEG Neuro Lab"
+    # + subtítulo por separado -- título triplicado por carga de página
+    # (este `<h1>`, el `<h2>` de "Vista Clínica" abajo, y el `# ` propio de
+    # page_content.py). Bug de renderizado, no estética -- ver CHANGELOG.md.
+    # Consolidación Visual, Tanda Final (2026-09-22): `validation=None`
+    # EXPLÍCITO, firmado por el experto -- no un olvido. EEG Neuro Lab es
+    # un contenedor MIXTO: DAR/TBR llevan cita clínica real (Claassen/
+    # Boksem, marco de severidad), χ está en observación (Gao/Voytek,
+    # marco de estado neutro, sin badge de validación de módulo). Una
+    # sola etiqueta de módulo mentiría sobre alguna de esas partes --
+    # los badges por-métrica (`render_metric_card`, ya en la vista en
+    # vivo desde Tanda 3) hacen el trabajo fino que un `validation=`
+    # único no puede.
+    render_module_header(
+        "EEG Neuro Lab", icon="🧠",
+        subtitle="Laboratorio de señales electroencefalográficas y análisis de ondas cerebrales",
+        validation=None,
+    )
+    tabs = st.tabs(["Clínica"])
 
     with tabs[0]:
-        st.header("Vista Clínica — EEG Neuro Lab")
+        render_section_header("Vista Clínica")
         if os.path.exists(MODULE_EMOJI):
             try:
                 runpy.run_path(MODULE_EMOJI, run_name='__main__')
             except Exception as e:
-                st.error(f"Error ejecutando página EEG original: {e}")
+                render_error_state("No se pudo renderizar la Vista Clínica de EEG Neuro Lab.", exception=e)
         else:
-            st.info("EEG Neuro Lab no encontrado. Implementación de plantilla.")
-
-    with tabs[1]:
-        st.header("Vista Educativa")
-        st.write("Tutoriales interactivos sobre identificación de ritmos y artefactos EEG.")
-
-    with tabs[2]:
-        st.header("Vista Investigación")
-        st.write("Análisis de bandas, conectividad y cohortes de pacientes neurológicos.")
-
-    with tabs[3]:
-        st.header("Vista IA")
-        st.write("Modelos para detección de crisis y herramientas explicables.")
-
-    with tabs[4]:
-        st.header("Vista Simulación")
-        st.write("Simuladores de actividad cerebral y perturbaciones.")
-
-    with tabs[5]:
-        st.header("Vista Gemelo Digital")
-        st.write("Gemelo neuronal para ensayar intervenciones y estimulación.")
+            render_empty_state("EEG Neuro Lab no encontrado", action="verifica la instalación del módulo")
 
 
 def main():
     render_views()
 
 
-try:
-    main()
-except Exception as e:
-    import streamlit as st
-    st.exception(f"Fallo al cargar la página 8_EEG_Neuro_Lab.py: {e}")
-
-
 def run():
-    """Wrapper entrypoint compatible with importing as `run` from supermodules."""
-    return main()
+    """Wrapper entrypoint compatible with importing as `run` from supermodules.
+
+    NOTA (2026-07-03): antes había también un `try: main() except ...` a nivel
+    de módulo, que se ejecutaba una vez al importar y otra vez aquí — doble
+    renderizado la primera vez que se importaba el módulo en un proceso. Se
+    eliminó; `run()` es ahora el único punto de entrada, igual que en
+    twin_shell/academia."""
+    try:
+        main()
+    except Exception as e:
+        render_error_state("No se pudo cargar EEG Neuro Lab.", exception=e)

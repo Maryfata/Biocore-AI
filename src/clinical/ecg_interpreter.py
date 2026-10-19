@@ -7,6 +7,16 @@ from scipy.signal import find_peaks
 
 
 def compute_intervals(time: np.ndarray, signal: np.ndarray, peaks: np.ndarray, fs: float) -> Dict[str, float]:
+    """Consolidación, Tanda 1 (2026-07-13): antes devolvía también
+    `qrs_duration`/`pr_interval`/`qt_interval` (0.1s/0.16s/0.36s — constantes
+    fijas, nunca medidas de la señal) y un `qtc` calculado a partir de ese QT
+    inventado (Art. I de la Constitución). Se quitaron los cuatro — solo
+    quedan valores que salen de picos R detectados de verdad en `signal`.
+
+    Opción futura (no implementada aquí, fuera del alcance de esta tanda):
+    medir QRS/PR/QT reales requeriría detectar los puntos Q, S, y el final de
+    la onda T alrededor de cada pico R (no solo el pico en sí) — es factible
+    con la señal ya disponible, pero es un detector nuevo, no una limpieza."""
     intervals = {}
     if len(peaks) < 2:
         return intervals
@@ -16,10 +26,6 @@ def compute_intervals(time: np.ndarray, signal: np.ndarray, peaks: np.ndarray, f
     intervals['bpm'] = float(60.0 / intervals['mean_rr'])
     intervals['sdnn'] = float(np.std(rr_intervals))
     intervals['rmssd'] = float(np.sqrt(np.mean(np.diff(rr_intervals) ** 2)))
-    intervals['qrs_duration'] = 0.1
-    intervals['pr_interval'] = 0.16
-    intervals['qt_interval'] = 0.36
-    intervals['qtc'] = intervals['qt_interval'] / np.sqrt(intervals['mean_rr']) if intervals['mean_rr'] > 0 else float('nan')
     return intervals
 
 
@@ -57,7 +63,6 @@ def interpret_ecg(signal: np.ndarray, fs: float, time: Optional[np.ndarray] = No
     flags = compute_clinical_flags(intervals, st_flags)
     description = []
     description.append(f"Frecuencia cardíaca estimada: {intervals.get('bpm', float('nan')):.1f} bpm")
-    description.append(f"QTc estimado: {intervals.get('qtc', float('nan')):.3f} s")
     if st_flags['st_elevation']:
         description.append('Se detecta posible elevación del segmento ST.')
     if st_flags['st_depression']:
@@ -76,12 +81,20 @@ def interpret_ecg(signal: np.ndarray, fs: float, time: Optional[np.ndarray] = No
 
 
 def compute_clinical_flags(intervals: Dict[str, float], st_flags: Dict[str, bool]) -> Dict[str, bool]:
+    """Consolidación, Tanda 1 (2026-07-13): `prolonged_qtc` se quitó — dependía
+    del `qtc` que a su vez dependía del `qt_interval` inventado (ver
+    `compute_intervals`); no hay QTc real que evaluar sin un QT medido. Nunca
+    se muestra un QTc que no se midió de verdad.
+
+    `possible_afib_heuristic` se conserva (viene de sdnn/bpm reales, calculados
+    de los picos R detectados) — renombrado desde `possible_afib` para dejar
+    explícito que es un heurístico simple sobre dos umbrales, no un diagnóstico
+    de fibrilación auricular."""
     return {
         'tachycardia': intervals.get('bpm', 0) > 100,
         'bradycardia': intervals.get('bpm', 0) < 60,
-        'prolonged_qtc': intervals.get('qtc', float('nan')) > 0.44,
         'st_elevation': st_flags.get('st_elevation', False),
         'st_depression': st_flags.get('st_depression', False),
         't_wave_inversion': st_flags.get('t_wave_inversion', False),
-        'possible_afib': intervals.get('sdnn', 0) > 0.12 and intervals.get('bpm', 0) > 90,
+        'possible_afib_heuristic': intervals.get('sdnn', 0) > 0.12 and intervals.get('bpm', 0) > 90,
     }

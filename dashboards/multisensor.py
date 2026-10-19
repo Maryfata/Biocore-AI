@@ -144,7 +144,18 @@ class MultisensoralRecord:
         if ecg_signals:
             ecg = ecg_signals[0]
             from scipy.signal import find_peaks
-            peaks, _ = find_peaks(ecg.signal, distance=int(0.3 * ecg.fs))
+            # `height` añadido (2026-08-20, Capa 2 Fase 2.2): sin umbral de
+            # altura, find_peaks contaba máximos de ruido, no picos R reales
+            # -- verificado por ejecución directa: sobre una señal sintética,
+            # detectaba el mismo conteo de picos (y el mismo HR estimado,
+            # ~178bpm) sin importar la frecuencia cardíaca objetivo. Mismo
+            # patrón de umbral que ya usa el resto del repo (p.ej.
+            # `src/signals/ecg/feature_extraction.py`,
+            # `src/clinical/ecg_interpreter.py`): media + 0.3*desviación.
+            peaks, _ = find_peaks(
+                ecg.signal, distance=int(0.3 * ecg.fs),
+                height=np.mean(ecg.signal) + 0.3 * np.std(ecg.signal),
+            )
             if len(peaks) > 1:
                 rr_intervals = np.diff(peaks) / ecg.fs
                 indices['heart_rate'] = 60.0 / np.mean(rr_intervals) if len(rr_intervals) > 0 else 0

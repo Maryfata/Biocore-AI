@@ -589,64 +589,71 @@ def build_complete_case_database() -> CaseDatabase:
     sexes = ['M', 'F']
     
     # Normal cases
+    # NOTA (2026-07-03): cada generate_*_case() ya antepone su propio prefijo de
+    # diagnóstico a case_id (ver p.ej. generate_nsr_case: case_id=f"NSR_{patient_id}").
+    # Antes se le pasaba aquí un patient_id que YA incluía ese mismo prefijo
+    # (f"NSR_{i}_{sex}"), duplicándolo en el case_id final (p.ej. "NSR_NSR_0_M").
+    # Nadie lo notó porque build_complete_case_database() nunca se llamaba desde
+    # la app — recién se conectó a la UI real del ECG Monitor. Se pasan ids
+    # simples (sin el prefijo) para que el case_id final quede limpio.
     for i, age in enumerate(ages):
         for sex in sexes:
-            case = generate_nsr_case(f"NSR_{i}_{sex}", age, sex)
+            case = generate_nsr_case(f"{i}_{sex}", age, sex)
             db.add_case(case)
-    
+
     # AFib cases
     for i in range(8):
         age = np.random.choice(ages)
         sex = np.random.choice(sexes)
         rate = np.random.randint(90, 140)
-        case = generate_afib_case(f"AFib_{i}", age, sex, rate)
+        case = generate_afib_case(str(i), age, sex, rate)
         db.add_case(case)
-    
+
     # PVC cases
     for i in range(8):
         age = np.random.choice(ages)
         sex = np.random.choice(sexes)
         pvc_rate = np.random.randint(3, 15)
-        case = generate_pvc_case(f"PVC_{i}", age, sex, pvc_rate)
+        case = generate_pvc_case(str(i), age, sex, pvc_rate)
         db.add_case(case)
-    
+
     # VT cases
     for i in range(4):
         age = np.random.choice(ages[2:])  # Older patients
         sex = np.random.choice(sexes)
         sustained = i % 2 == 0
-        case = generate_vt_case(f"VT_{i}", age, sex, sustained)
+        case = generate_vt_case(str(i), age, sex, sustained)
         db.add_case(case)
-    
+
     # AV Block cases
     for degree in [1, 2, 3]:
         for i in range(3):
             age = np.random.choice(ages[2:])
             sex = np.random.choice(sexes)
-            case = generate_av_block_case(f"AVBlock_{degree}_{i}", age, sex, degree)
+            case = generate_av_block_case(str(i), age, sex, degree)
             db.add_case(case)
-    
+
     # Bundle branch blocks
     for block_type in ['RBBB', 'LBBB']:
         for i in range(4):
             age = np.random.choice(ages)
             sex = np.random.choice(sexes)
-            case = generate_bundle_branch_case(f"{block_type}_{i}", age, sex, block_type)
+            case = generate_bundle_branch_case(str(i), age, sex, block_type)
             db.add_case(case)
-    
+
     # STEMI cases
     for location in ['anterior', 'inferior', 'lateral']:
         for i in range(3):
             age = np.random.choice(ages[1:])  # Mostly older
             sex = np.random.choice(sexes)
-            case = generate_stemi_case(f"STEMI_{location}_{i}", age, sex, location)
+            case = generate_stemi_case(str(i), age, sex, location)
             db.add_case(case)
-    
+
     # Long QT
     for i in range(3):
         age = np.random.choice(ages[:4])  # Often younger
         sex = np.random.choice(sexes)
-        case = generate_longqt_case(f"LongQT_{i}", age, sex)
+        case = generate_longqt_case(str(i), age, sex)
         db.add_case(case)
     
     return db
