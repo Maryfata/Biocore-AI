@@ -78,18 +78,23 @@ class PALETTE:
     CHANGELOG.md para la tabla completa.
 
     `PRIMARY` es el `primaryColor` de `.streamlit/config.toml` -- pensado
-    para los CONTROLES nativos de Streamlit (fondo de botones/sliders,
-    donde el contraste que importa es con el texto que Streamlit dibuja
-    encima, ~6.70:1 con texto blanco). NO usar `PRIMARY` como color de
-    TEXTO directo sobre `BACKGROUND` -- da 2.66:1, reprueba incluso WCAG AA
-    (mínimo 4.5:1 para texto normal). Para encabezados/íconos sobre fondo
-    oscuro, usar `ACCENT_ON_DARK` (9.98:1, AAA)."""
+    para los CONTROLES nativos de Streamlit. Rediseño 2026-10-19: teal de
+    la paleta "médica" de UI UX Pro Max (#0891B2), ajustado por cálculo a
+    #099fbd para que un solo valor cumpla todo en modo oscuro: como texto
+    (la pestaña activa y el valor de los sliders, que Streamlit pinta en
+    este color) 5.70:1 sobre `BACKGROUND` y 4.55:1 sobre la barra lateral
+    (`SECONDARY_BACKGROUND`) -- el azul anterior #1d4ed8 daba 2.66:1 --; la
+    palomita blanca de un checkbox encima, 3.13:1 (≥ 3:1, WCAG 1.4.11); y
+    el texto OSCURO de los botones primarios, 5.70:1 (ver
+    `global_theme_css()`). Para encabezados/íconos de marca sobre fondo
+    oscuro, `ACCENT_ON_DARK` (12.32:1, AAA)."""
 
-    PRIMARY = "#1d4ed8"           # controles nativos de Streamlit (botones/sliders) -- NO como texto sobre BACKGROUND
-    ACCENT_ON_DARK = "#8ecae6"    # texto/íconos de marca sobre fondo oscuro -- 9.98:1 sobre BACKGROUND (AAA)
+    PRIMARY = "#099fbd"           # controles nativos de Streamlit -- 5.70:1 como texto sobre BACKGROUND
+    ACCENT_ON_DARK = "#67e8f9"    # texto/íconos de marca sobre fondo oscuro -- 12.32:1 sobre BACKGROUND (AAA)
     BACKGROUND = "#0f172a"
     SECONDARY_BACKGROUND = "#1a2a4a"
     TEXT = "#e0e7ff"              # 14.49:1 sobre BACKGROUND, 11.56:1 sobre SECONDARY_BACKGROUND (AAA ambos)
+    TRACE = "#22d3ee"             # tinta de señal de las ilustraciones y enlaces -- 9.88:1 sobre BACKGROUND
 
     # Semántica de estado -- promovida de ups_body_visual.py (fuente
     # original). Contraste sobre BACKGROUND: STABLE 9.75:1 (AAA), WARNING
@@ -217,6 +222,48 @@ _VALIDATION_TIER_STYLE = {
 }
 
 
+def module_header_html(
+    title: str,
+    icon: str = "",
+    subtitle: Optional[str] = None,
+    *,
+    art: Optional[str] = None,
+    hub: Optional[str] = None,
+) -> str:
+    """HTML del encabezado de módulo (rediseño visual 2026-10-19), sin
+    Streamlit: migas de pan (hub › módulo), ícono SVG del módulo, el ÚNICO
+    `<h1>` de la página, subtítulo y la "tira de monitor" con la señal del
+    módulo (`visualization/art/strips.py`). Todo en un solo bloque HTML
+    para que el `<h1>` siga siendo único y el subtítulo aparezca una sola
+    vez (pruebas de la Consolidación Visual Tanda 1).
+
+    `art` elige ícono + tira (`"ecg"`, `"eeg"`, `"respiratory"`, ...; ver
+    `STRIP_KINDS`). Sin `art`, el título conserva el emoji `icon` como
+    antes -- ningún llamador cambia de aspecto sin pedirlo."""
+    from html import escape
+
+    from visualization.art import module_glyph_svg, signal_strip_svg
+
+    glyph = module_glyph_svg(art) if art else ""
+    header_text = title if glyph else f"{icon} {title}".strip()
+    parts = ['<div class="bc-head">']
+    if hub and hub != title:
+        parts.append(
+            f'<div class="bc-crumb">{escape(hub)}<span aria-hidden="true">›</span>{escape(title)}</div>'
+        )
+    parts.append('<div class="bc-title-row">')
+    if glyph:
+        parts.append(f'<span class="bc-glyph" aria-hidden="true">{glyph}</span>')
+    parts.append(f"<h1>{escape(header_text)}</h1></div>")
+    if subtitle:
+        parts.append(f'<p class="bc-sub">{escape(subtitle)}</p>')
+    parts.append("</div>")
+    strip = signal_strip_svg(art) if art else ""
+    if strip:
+        parts.append(f'<div class="bc-strip">{strip}</div>')
+    return "".join(parts)
+
+
 def render_module_header(
     title: str,
     icon: str = "",
@@ -224,6 +271,7 @@ def render_module_header(
     *,
     validation: Optional[str] = None,
     validation_detail: Optional[str] = None,
+    art: Optional[str] = None,
 ) -> None:
     """Título de módulo -- un solo estilo para todos, reemplaza los 4
     mecanismos encontrados en el recon (`<h1>`/`<h2>` a mano, `st.header()`,
@@ -255,17 +303,17 @@ def render_module_header(
     sitio de la llamada que registre por qué, para que no se lea como un
     olvido. Valores fuera de `_VALIDATION_TIER_STYLE` se ignoran
     silenciosamente en vez de fallar -- un typo en `validation` no debe
-    tirar la página completa."""
-    header_text = f"{icon} {title}".strip()
-    st.markdown(
-        f"<h1 style='color:{PALETTE.ACCENT_ON_DARK}; margin-bottom:0;'>{header_text}</h1>",
-        unsafe_allow_html=True,
-    )
-    if subtitle:
-        st.markdown(
-            f"<p style='color:{PALETTE.TEXT}; opacity:0.75; margin-top:0;'>{subtitle}</p>",
-            unsafe_allow_html=True,
-        )
+    tirar la página completa.
+
+    `art` (rediseño visual, 2026-10-19): ícono SVG + tira de señal del
+    módulo, ver `module_header_html()`. El marcador de validación de abajo
+    NO cambia (mismo `border-left:3px solid`, mismo símbolo, misma firma)."""
+    hub = None
+    try:
+        hub = st.session_state.get("selected_hub")
+    except Exception:  # fuera de un script de Streamlit
+        hub = None
+    st.markdown(module_header_html(title, icon, subtitle, art=art, hub=hub), unsafe_allow_html=True)
     marker = resolve_validation_marker(validation, validation_detail)
     if marker is not None:
         color, symbol, text = marker
@@ -541,17 +589,105 @@ def inject_global_theme() -> None:
     Las clases `.biocore-card`/`.biocore-panel`/`.status-pill`/
     `.pulse-dot` del bloque original se RETIRAN -- confirmado por grep en
     todo el repo que ningún elemento en ningún archivo las usa; eran CSS
-    muerto desde que se escribieron."""
-    st.markdown(
-        f"""
-        <style>
-            :root {{ color-scheme: dark; font-family: 'Inter', 'Segoe UI', sans-serif; }}
-            html, body, [data-testid='stAppViewContainer'] {{
-                background: radial-gradient(circle at top left, {PALETTE.PRIMARY}22, transparent 30%),
-                            {PALETTE.BACKGROUND};
-                color: {PALETTE.TEXT};
-            }}
-        </style>
-        """,
-        unsafe_allow_html=True,
+    muerto desde que se escribieron.
+
+    Rediseño visual (2026-10-19, lista de verificación de UI UX Pro Max):
+    fondo plano (sin el degradado decorativo), foco visible de 3 px en todo
+    control, objetivos táctiles de 44 px, transiciones de 150 ms, texto
+    oscuro sobre el botón primario (contraste AA), y
+    `prefers-reduced-motion` respetado (apaga la animación de trazado de
+    la tira y los latidos del cuerpo del gemelo). Las tipografías (Figtree
+    y Noto Sans, empaquetadas en `app/static/fonts/`, funcionan sin
+    internet) se declaran en `.streamlit/config.toml`. El CSS de las
+    ilustraciones vive en `visualization/art/css.py` (`ART_CSS`)."""
+    st.markdown(global_theme_css(), unsafe_allow_html=True)
+
+
+def global_theme_css() -> str:
+    """El `<style>` que inyecta `inject_global_theme()` (sin Streamlit, para
+    poder probarlo). Una sola línea lógica de HTML: sin líneas en blanco."""
+    from visualization.art.css import ART_CSS
+
+    focus = PALETTE.TRACE
+    css = f"""
+:root{{color-scheme:dark}}
+html,body,[data-testid='stAppViewContainer']{{background:{PALETTE.BACKGROUND};color:{PALETTE.TEXT}}}
+[data-testid='stSidebar']{{border-right:1px solid rgba(148,163,209,.14)}}
+a{{text-underline-offset:2px}}
+:is(button,[role='tab'],[role='radio'],[role='checkbox'],[role='switch'],[role='option'],summary,a,input,textarea,select):focus-visible{{
+  outline:3px solid {focus}!important;outline-offset:2px;border-radius:8px}}
+[data-testid^='stBaseButton']{{min-height:44px;transition:background-color .15s ease,border-color .15s ease,color .15s ease,box-shadow .15s ease}}
+[data-testid='stBaseButton-primary'],[data-testid='stBaseButton-primary'] p{{color:{PALETTE.BACKGROUND}!important;font-weight:600}}
+[data-testid='stBaseButton-secondary']:hover{{border-color:{PALETTE.TRACE};color:{PALETTE.ACCENT_ON_DARK}}}
+[data-baseweb='tab']{{min-height:44px}}
+[data-testid='stExpander'] summary{{min-height:44px}}
+[data-testid='stExpander'] details{{border-color:rgba(148,163,209,.18)}}
+[data-testid='stMetricValue']{{font-variant-numeric:tabular-nums}}
+[data-testid='stCaptionContainer']{{line-height:1.5}}
+{ART_CSS}
+@media (prefers-reduced-motion: reduce){{
+  *,*::before,*::after{{animation-duration:.01ms!important;animation-iteration-count:1!important;
+  transition-duration:.01ms!important;scroll-behavior:auto!important}}
+}}
+"""
+    # Sin líneas en blanco ni sangría (Markdown las convertiría en texto).
+    compact = "".join(line.strip() for line in css.strip().splitlines())
+    return f"<style>{compact}</style>"
+
+
+def render_plate(key: str, **kwargs) -> None:
+    """Lámina del Atlas visual (`visualization/art/plates.py`) en la página.
+
+    `kwargs` pasa el resaltado que acepte la lámina (`highlight=`,
+    `active=`, `selected=`, `dominant=`, `axis_deg=`). Si la lámina falla
+    por cualquier motivo, se registra y la página sigue -- una ilustración
+    nunca debe tirar un laboratorio."""
+    try:
+        from visualization.art import plate_figure_html
+
+        html = plate_figure_html(key, **kwargs)
+    except Exception as exc:  # pragma: no cover - defensivo
+        logger.error("render_plate(%s) falló", key, exc_info=exc)
+        return
+    st.markdown(html, unsafe_allow_html=True)
+
+
+def brand_block_html() -> str:
+    """Marca de la barra lateral: un núcleo con un latido que lo atraviesa."""
+    mark = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">'
+        f'<rect width="40" height="40" rx="11" fill="{PALETTE.SECONDARY_BACKGROUND}"/>'
+        f'<circle cx="20" cy="20" r="11.5" fill="none" stroke="{PALETTE.PRIMARY}" stroke-width="2.2"/>'
+        f'<path d="M4 21h8.4l2.2-4.6 3.4 10 3.6-14 2.8 8.6H36" fill="none" stroke="{PALETTE.TRACE}" '
+        'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+    )
+    return (
+        f'<div class="bc-brand">{mark}<div><div class="bc-brand-name">BIOCORE AI</div>'
+        '<div class="bc-brand-tag">Laboratorio de fisiología digital</div></div></div>'
+    )
+
+
+def session_status_html(twin_active: bool, narrator_ready: bool, patient_name: Optional[str] = None) -> str:
+    """Estado útil de la sesión para la barra lateral (reemplaza los textos
+    de relleno "Control universal"/"Modo plataforma"). El color nunca va
+    solo: cada punto lleva su texto."""
+    from html import escape
+
+    def row(on: bool, title: str, on_text: str, off_text: str) -> str:
+        color = PALETTE.STABLE if on else PALETTE.NEUTRAL
+        return (
+            f'<div class="bc-status-row"><span class="bc-dot" style="background:{color}"></span>'
+            f'<span><b>{title}</b>{on_text if on else off_text}</span></div>'
+        )
+
+    patient_text = f"Paciente: {escape(patient_name)} (simulación)." if patient_name else ""
+    return (
+        '<div class="bc-status">'
+        + row(twin_active, "Gemelo digital", patient_text or "Simulación activa en esta sesión.",
+              "Se crea al abrir Digital Twin OS.")
+        + row(narrator_ready, "Narrador clínico IA", "Conectado (ANTHROPIC_API_KEY).",
+              "Sin clave: todo lo demás funciona igual.")
+        + '<div class="bc-status-row"><span class="bc-dot" style="background:transparent"></span>'
+        '<span>El narrador vive en Digital Twin OS, en Herramientas avanzadas.</span></div>'
+        + "</div>"
     )

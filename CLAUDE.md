@@ -74,6 +74,13 @@ Expuesto en `app/supermodules/twin_shell/pages.py::render_clinical_narrator()` y
 - Quiz y casos ciegos (Academia y Twin OS) se califican SIN `ANTHROPIC_API_KEY`; la clave solo activa el feedback narrado (`render_ai_feedback_off_notice()` en `design_system.py`). No volver a poner `return` antes de la parte determinista.
 - `src/signals/hrv_tools.py` — lectura de RR desde archivo + Poincaré SD1/SD2 para `render_hrv_page()`.
 
+## Ilustraciones y sistema visual (2026-10-20)
+
+- `visualization/art/` — SVG generado por código, sin Streamlit: `strips.py` (tira de señal de cada encabezado, `render_module_header(..., art="ecg")`), `glyphs.py` (íconos de módulo y órganos), `plates.py` (láminas del Atlas visual, `render_plate("ecg_complex", highlight="QRS")` desde `design_system.py`), `meters.py` (NEWS2), `css.py` (`ART_CSS`, inyectado por `inject_global_theme()`), `tokens.py` (colores; `BACKGROUND`/`INK`/`TEAL`/`TRACE` deben coincidir con `PALETTE`).
+- Reglas: toda lámina dice "Esquema ilustrativo" y lleva fuentes; los números que rotula salen del código (medidos sobre el dibujo o constantes que la app ya usa para calcular), nunca escritos a mano; el arte decorativo NO usa `PALETTE.STABLE/WARNING/CRITICAL` (prueba en `tests/test_illustrations.py`); el HTML para `st.markdown` va sin líneas en blanco ni `$`.
+- Tipografías Figtree/Noto Sans en `app/static/fonts/` (servidas con `server.enableStaticServing`). Primario `#099fbd` elegido por contraste (ver `PALETTE`). `chartCategoricalColors` debe tener 10 colores o Plotly ignora la lista.
+- Para un gráfico nuevo de Plotly: no pongas `template=...`; deja que Streamlit aplique el tema de la app.
+
 ## Antes de tocar código
 
 1. Lee `PLAN.md` para saber en qué fase está el proyecto y qué está aprobado para ejecutarse.

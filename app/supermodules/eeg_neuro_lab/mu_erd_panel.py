@@ -98,7 +98,7 @@ def build_erd_figure(result, time: np.ndarray, lead: str) -> go.Figure:
             annotation_text="ERD", annotation_position="top",
         )
     fig.update_layout(
-        template='plotly_dark', height=320,
+        height=320,
         paper_bgcolor=PALETTE.BACKGROUND, plot_bgcolor=PALETTE.BACKGROUND, font=dict(color=PALETTE.TEXT),
         xaxis_title="Tiempo (s)", yaxis_title="Potencia instantánea banda mu (µV²)",
     )

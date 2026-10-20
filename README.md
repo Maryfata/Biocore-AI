@@ -31,9 +31,13 @@ Esa honestidad de procedencia no es un detalle estético. Es la diferencia entre
 **Los tres hubs:**
 - **Digital Twin OS** — el organismo entero: órganos que reaccionan al UPS, acoplamientos entre sistemas, casos clínicos, línea de tiempo fisiológica.
 - **Clinical Hub** — los laboratorios de señal: ECG, EEG, EMG, Respiratorio, HRV, Biomarcadores, y más — y las **🧮 Calculadoras Clínicas**.
-- **Learning Hub** — casos clínicos ciegos y evaluación con feedback fundamentado.
+- **Learning Hub** — casos clínicos ciegos, evaluación con feedback fundamentado y el **Atlas visual**.
 
-**🧮 Calculadoras Clínicas.** Fórmulas y escalas publicadas, cada una con su cita y su lectura contra el corte que fija la referencia: QTc (Bazett, Fridericia, Framingham, Hodges), FC desde el papel del ECG, eje eléctrico con dial hexaxial, PAM / presión de pulso / índice de choque, gasto e índice cardiaco, IMC y superficie corporal (Mosteller, Du Bois), PAO₂ y gradiente A–a **corregidos por altitud** (Ciudad de México, Guadalajara, Toluca…), PaO₂/FiO₂ con los rangos de Berlín, NEWS2, qSOFA y Glasgow. Pueden importar la FC, FR y SpO₂ del gemelo digital (etiquetadas como simulación) y exportan un informe PDF/HTML.
+**Atlas visual e ilustraciones.** Nueve láminas dibujadas por código, sin internet y con sus fuentes: anatomía del complejo ECG, sistema de conducción, derivaciones precordiales, sistema hexaxial, del ECG al tacograma, sistema 10-20, bandas del EEG, siete patrones respiratorios y unidad motora. Aparecen dentro de cada laboratorio y se resaltan según lo que eliges (la onda del ECG, el nodo del sistema de conducción, los canales EEG en uso, la banda dominante calculada, el patrón respiratorio). Cada módulo abre con su propia señal dibujada sobre papel milimétrico, y los números que rotulan las láminas salen del mismo código que calcula, nunca escritos a mano.
+
+**🧮 Calculadoras Clínicas.** Fórmulas y escalas publicadas, cada una con su cita y su lectura contra el corte que fija la referencia: QTc (Bazett, Fridericia, Framingham, Hodges), FC desde el papel del ECG, eje eléctrico sobre el sistema hexaxial, PAM / presión de pulso / índice de choque, gasto e índice cardiaco, IMC y superficie corporal (Mosteller, Du Bois), PAO₂ y gradiente A–a **corregidos por altitud** (Ciudad de México, Guadalajara, Toluca…), PaO₂/FiO₂ con los rangos de Berlín, NEWS2 (con su medidor de bandas), qSOFA y Glasgow; la PAO₂ se grafica contra la altitud con las ciudades marcadas. Pueden importar la FC, FR y SpO₂ del gemelo digital (etiquetadas como simulación) y exportan un informe PDF/HTML.
+
+**Interfaz accesible.** Diseño guiado por UI UX Pro Max para salud: tipografías Figtree y Noto Sans incluidas, contraste WCAG verificado por cálculo, foco visible, objetivos táctiles de 44 px, movimiento reducido respetado y paleta de gráficos validada para daltonismo.
 
 **Funciona sin clave de IA.** Los quizzes y los casos clínicos ciegos se califican con la respuesta del banco/simulador (código, no modelo); la clave de Anthropic solo activa el feedback narrado.
 

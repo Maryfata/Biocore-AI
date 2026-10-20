@@ -25,7 +25,9 @@ import shutil
 # profundidad, así que el cálculo de la raíz del repo necesita un salto más.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
-from app.utils.design_system import BADGES, GRAMMAR_NEUTRAL_STATE, render_error_state, render_metric_card, resolve_metric_card
+from app.utils.design_system import (
+    BADGES, GRAMMAR_NEUTRAL_STATE, render_error_state, render_metric_card, render_plate, resolve_metric_card,
+)
 
 # Capa 5A, Sub-fase 1 (2026-08-30): cierre del círculo EEG->UPS->gemelo --
 # mismo patrón que Respiratory/HRV/ECG Lab (Fase 2.4), aplicado al cuarto
@@ -434,7 +436,7 @@ with col1:
             fig.update_yaxes(showgrid=True, gridcolor='#334155', gridwidth=1, row=idx, col=1)
         fig.update_xaxes(title_text='Tiempo (s)', row=display_rows, col=1)
         fig.update_xaxes(showgrid=True, gridcolor='#334155', gridwidth=1, row=display_rows, col=1)
-        fig.update_layout(height=250 * display_rows, template='plotly_dark', paper_bgcolor='#0f172a', plot_bgcolor='#0f172a', font=dict(color='#e0e7ff'))
+        fig.update_layout(height=250 * display_rows, paper_bgcolor='#0f172a', plot_bgcolor='#0f172a', font=dict(color='#e0e7ff'))
         st.plotly_chart(fig, width="stretch")
 
         st.markdown("## 🧠 Análisis de Potencia de Banda")
@@ -823,11 +825,14 @@ with col2:
 
     st.markdown("---")
     st.markdown("## 📚 Referencias EEG")
-    st.write("**Banda Delta:** sueño profundo, 0.5-4 Hz")
-    st.write("**Banda Theta:** somnolencia, 4-8 Hz")
-    st.write("**Banda Alpha:** relajación con ojos cerrados, 8-12 Hz")
-    st.write("**Banda Beta:** alerta y concentración, 13-30 Hz")
-    st.write("**Banda Gamma:** procesamiento cognitivo integrado, 30-45 Hz")
+    # Rediseño visual (2026-10-19): dos láminas del Atlas en lugar de la lista
+    # de texto. El mapa 10-20 resalta los canales que se están dibujando; la
+    # de bandas resalta la banda dominante YA calculada arriba por
+    # `EegAnalyzer` y usa sus mismos límites (`BAND_LIMITS_HZ`), no los
+    # redondeados que decía la lista anterior.
+    _dominant = overall.dominant_band if (overall is not None and overall.available) else None
+    render_plate("eeg_bands", dominant=_dominant)
+    render_plate("eeg_1020", active=tuple(display_leads))
 
     with st.expander("🧪 Quiz interactivo EEG"):
         quiz_questions = [

@@ -158,6 +158,26 @@ ARTIFACT_GRADIENT_THRESHOLD_UV_PER_S: float = 5500.0
 # ventana para no ser un solo periodograma disfrazado de PSD.
 MIN_CLEAN_EEG_DURATION_S: float = 2.0
 
+# Límites (Hz) en los que `analyze()` integra la potencia de cada banda, y
+# la etiqueta de estado de `_classify_pattern()`. Expuestos como constantes
+# (2026-10-19) para que la lámina "Bandas del EEG" (`visualization/art/
+# plates.py`) muestre EXACTAMENTE lo que este analizador mide, sin copiar
+# los números a mano. Mismos valores que antes, solo nombrados.
+BAND_LIMITS_HZ: Dict[str, Tuple[float, float]] = {
+    'delta': (0.5, 3.5),
+    'theta': (4.0, 7.5),
+    'alpha': (8.0, 12.0),
+    'beta': (13.0, 30.0),
+    'gamma': (30.0, 45.0),
+}
+BAND_CLASSIFICATION: Dict[str, str] = {
+    'alpha': 'Despierto relajado',
+    'beta': 'Alerta / Enfocado',
+    'theta': 'Sueño ligero / Somnolencia',
+    'delta': 'Sueño profundo / Ritmo lento',
+    'gamma': 'Actividad cortical alta / Activación cognitiva',
+}
+
 
 def beta_alpha_ratio(beta_power: float, alpha_power: float) -> Optional[float]:
     """BAR = beta_power / alpha_power. Adimensional -- su valor NO depende
@@ -341,11 +361,8 @@ class EegAnalyzer:
             return self._unavailable(reason, clean_fraction=clean_fraction, clean_window_count=clean_window_count)
 
         band_power = {
-            'delta': self._band_power(freqs, psd, 0.5, 3.5),
-            'theta': self._band_power(freqs, psd, 4.0, 7.5),
-            'alpha': self._band_power(freqs, psd, 8.0, 12.0),
-            'beta': self._band_power(freqs, psd, 13.0, 30.0),
-            'gamma': self._band_power(freqs, psd, 30.0, 45.0),
+            band: self._band_power(freqs, psd, low, high)
+            for band, (low, high) in BAND_LIMITS_HZ.items()
         }
         dominant_band = max(band_power, key=band_power.get)
         # DAR/TBR reusan los mismos band power ya calculados arriba para el
@@ -460,17 +477,7 @@ class EegAnalyzer:
         return float(_trapz(psd[mask], freqs[mask])) if np.any(mask) else 0.0
 
     def _classify_pattern(self, dominant_band: str, band_power: Dict[str, float]) -> str:
-        if dominant_band == 'alpha':
-            return 'Despierto relajado'
-        if dominant_band == 'beta':
-            return 'Alerta / Enfocado'
-        if dominant_band == 'theta':
-            return 'Sueño ligero / Somnolencia'
-        if dominant_band == 'delta':
-            return 'Sueño profundo / Ritmo lento'
-        if dominant_band == 'gamma':
-            return 'Actividad cortical alta / Activación cognitiva'
-        return 'Patrón no determinado'
+        return BAND_CLASSIFICATION.get(dominant_band, 'Patrón no determinado')
 
     def _interpretation_text(self, dominant_band: str) -> str:
         mapping = {

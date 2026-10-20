@@ -35,7 +35,10 @@ from app.engines import (
     SimulationScenario,
     PredictionEngine,
 )
-from app.utils.design_system import render_module_header, render_error_state, render_ai_feedback_off_notice, BADGES
+from app.utils.design_system import (
+    render_module_header, render_error_state, render_ai_feedback_off_notice, render_plate, BADGES, PALETTE,
+)
+from visualization.art import get_plate, organ_glyph_svg
 from app.utils.patient_session import (
     get_active_patient_id,
     get_active_session_factory,
@@ -130,6 +133,33 @@ ORGAN_STATUS_LABELS = {
     OrganHealthStatus.CRITICAL: "Crítico",
 }
 
+# Rediseño visual (2026-10-19): el color de cada tarjeta de órgano sale de
+# la paleta de estado compartida (`PALETTE`), no de los verdes/rojos neón
+# propios del engine (`OrganSystem.color`, que no se toca). El color nunca
+# va solo: la tarjeta escribe además el número o la banda ("Alerta").
+RISK_LEVEL_COLOR = {
+    "BAJO": PALETTE.STABLE,
+    "MODERADO": PALETTE.WARNING,
+    "ALTO": PALETTE.CRITICAL,
+    "CRÍTICO": PALETTE.CRITICAL,
+}
+
+ORGAN_STATUS_COLOR = {
+    OrganHealthStatus.OPTIMAL: PALETTE.STABLE,
+    OrganHealthStatus.NORMAL: PALETTE.STABLE,
+    OrganHealthStatus.ALERT: PALETTE.WARNING,
+    OrganHealthStatus.CRITICAL: PALETTE.CRITICAL,
+}
+
+# Lámina del Atlas visual que explica cada sistema (visualization/art/plates.py).
+ORGAN_PLATE = {
+    "heart": "conduction",
+    "brain": "eeg_bands",
+    "lungs": "respiratory_patterns",
+    "muscles": "motor_unit",
+    "autonomic": "tachogram",
+}
+
 # Fase 2 (honestidad de presentación, 2026-08-30): Corazón y Pulmones citan
 # un punto de referencia clínico real (PROVENANCE_SOURCE_HEALTHY_ADULT) para
 # su health score, aunque los pesos de la fórmula sean heurísticos -- se
@@ -146,11 +176,13 @@ def _qualitative_band(value: float, labels: tuple, high: float = 70.0, low: floa
     cortes 70/40 que `render_ambient_header()` ya usaba para colorear el
     número de Estado Fisiológico Global -- no se inventa un tercer par de
     umbrales para lo mismo. `labels` = (bajo, medio, alto)."""
+    # Rediseño visual (2026-10-19): colores de la paleta de estado
+    # compartida (`PALETTE`) en vez de los neón propios de esta página.
     if value >= high:
-        return labels[2], "#39ffbe"
+        return labels[2], PALETTE.STABLE
     if value >= low:
-        return labels[1], "#ffd700"
-    return labels[0], "#ff3333"
+        return labels[1], PALETTE.WARNING
+    return labels[0], PALETTE.CRITICAL
 
 
 def _coupling_band(value: float) -> tuple:
@@ -235,33 +267,38 @@ def render_ambient_header(organism: DigitalTwinOrganism) -> None:
     risk = state.get("risk_level", "BAJO")
     coherence = state.get("system_coherence", 0.0)
     resilience = state.get("resilience_index", 0.0)
-    color = "#39ffbe" if health >= 70 else ("#ffd700" if health >= 40 else "#ff3333")
-
     # Fase 2 (honestidad de presentación, 2026-08-30): estos 3 números
     # (health/coherence/resilience) son heurística pura sin ancla clínica
     # citada (ver PROVENANCE_HEURISTIC_LABEL más abajo) -- mostrarlos como
     # "64/100"/"74%" en letra grande finge una precisión de medición que no
     # tienen. El CÁLCULO no cambia (sigue siendo el mismo número, usado aquí
     # solo para decidir la banda) -- ver CHANGELOG.md.
-    global_label, _ = _qualitative_band(health, ("Crítico", "En observación", "Estable"))
+    global_label, color = _qualitative_band(health, ("Crítico", "En observación", "Estable"))
     coherence_label, coherence_color = _qualitative_band(coherence, ("Baja", "Media", "Alta"))
     resilience_label, resilience_color = _qualitative_band(resilience, ("Baja", "Media", "Alta"))
+    # Rediseño visual (2026-10-19): el riesgo se colorea por SU propio nivel
+    # (antes tomaba el color del estado global: "BAJO" salía en amarillo).
+    risk_color = RISK_LEVEL_COLOR.get(str(risk).upper(), PALETTE.NEUTRAL)
+
+    # Rediseño visual (2026-10-19): etiqueta en minúsculas (sin el
+    # "ESTADO FISIOLÓGICO GLOBAL" espaciado en mayúsculas) y los tres
+    # indicadores como columnas legibles en lugar de una línea con puntos.
+    def _kpi(label: str, value: str, value_color: str) -> str:
+        return (
+            f"<div><div style='font-size:.8125rem;color:#94a3c8'>{label}</div>"
+            f"<div style='font-weight:700;font-size:1.05rem;color:{value_color}'>{value}</div></div>"
+        )
 
     st.markdown(
-        f"""
-        <div style='text-align:center; padding: 20px; border-radius: 22px;
-                    border: 1px solid {color}55; background: rgba(255,255,255,0.03); margin-bottom: 20px;'>
-            <div style='font-size: 12px; letter-spacing: 3px; color: #9fb4c9;'>ESTADO FISIOLÓGICO GLOBAL</div>
-            <div style='font-size: 34px; font-weight: 700; color: {color}; line-height: 1.2;'>
-                {global_label}
-            </div>
-            <div style='font-size: 13px; color: #9fb4c9;'>
-                Riesgo: <b style='color:{color};'>{risk}</b>
-                &nbsp;·&nbsp; Coherencia sistémica: <b style='color:{coherence_color};'>{coherence_label}</b>
-                &nbsp;·&nbsp; Resiliencia: <b style='color:{resilience_color};'>{resilience_label}</b>
-            </div>
-        </div>
-        """,
+        f"<div style='display:flex;flex-wrap:wrap;align-items:center;gap:14px 28px;padding:18px 22px;"
+        f"border-radius:18px;border:1px solid {color}55;background:rgba(255,255,255,0.03);margin-bottom:16px'>"
+        f"<div style='flex:1 1 220px'><div style='font-size:.875rem;color:#94a3c8'>Estado fisiológico global</div>"
+        f"<div style='font-family:Figtree,Noto Sans,sans-serif;font-size:2rem;font-weight:700;color:{color};"
+        f"line-height:1.15'>{global_label}</div></div>"
+        f"{_kpi('Riesgo', risk, risk_color)}"
+        f"{_kpi('Coherencia sistémica', coherence_label, coherence_color)}"
+        f"{_kpi('Resiliencia', resilience_label, resilience_color)}"
+        f"</div>",
         unsafe_allow_html=True,
     )
     st.caption(
@@ -283,12 +320,13 @@ def render_organ_grid(organism: DigitalTwinOrganism) -> None:
     for col, organ_id in zip(cols, ORGAN_ORDER):
         organ = organism.organs[organ_id]
         selected = st.session_state.twin_shell_selected_organ == organ_id
+        color = ORGAN_STATUS_COLOR.get(organ.status, PALETTE.NEUTRAL)
         # 2026-10-19: borde SIEMPRE de 1px + anillo interior (box-shadow) para
         # la selección. Antes la tarjeta seleccionada usaba un borde de 3px y
         # las tarjetas con número vs. banda cualitativa tenían alto distinto:
         # los botones "Explorar" quedaban desalineados en la fila.
-        border = "1px solid " + (organ.color if selected else "rgba(255,255,255,0.14)")
-        ring = f"box-shadow: inset 0 0 0 2px {organ.color};" if selected else ""
+        border = "1px solid " + (color if selected else "rgba(255,255,255,0.14)")
+        ring = f"box-shadow: inset 0 0 0 2px {color};" if selected else ""
 
         # Fase 2 (honestidad de presentación, 2026-08-30): Corazón/Pulmones
         # citan un punto de referencia clínico real -- se quedan como
@@ -300,29 +338,25 @@ def render_organ_grid(organism: DigitalTwinOrganism) -> None:
         # calculándose igual en ambos casos -- solo cambia qué se muestra.
         if organ_id in ORGANS_WITH_CITED_HEALTH_SCORE:
             value_html = (
-                f"<div style='font-size: 22px; color: {organ.color}; font-weight: 700;'>"
-                f"{organ.metrics.health_score:.0f}</div>"
-                f"<div style='font-size: 10px; color: #9fb4c9;'>🟢🔵 con ancla</div>"
+                f"<div style='font-size: 22px; color: {color}; font-weight: 700; "
+                f"font-variant-numeric: tabular-nums;'>{organ.metrics.health_score:.0f}</div>"
+                f"<div class='bc-organ-note'>{PROVENANCE_CLINICAL_BADGE}{PROVENANCE_HEURISTIC_BADGE} con ancla</div>"
             )
         else:
             status_label = ORGAN_STATUS_LABELS[organ.status]
             value_html = (
-                f"<div style='font-size: 15px; color: {organ.color}; font-weight: 700; margin-top: 6px;'>"
+                f"<div style='font-size: 15px; color: {color}; font-weight: 700; margin-top: 4px;'>"
                 f"{status_label}</div>"
-                f"<div style='font-size: 10px; color: #9fb4c9;'>🔵 heurística</div>"
+                f"<div class='bc-organ-note'>{PROVENANCE_HEURISTIC_BADGE} heurística</div>"
             )
 
+        # Órgano dibujado (visualization/art/glyphs.py) en vez del emoji: se
+        # ve igual en todos los sistemas y toma el color de su estado.
+        glyph = organ_glyph_svg(organ_id, color, size=46)
         with col:
             st.markdown(
-                f"""
-                <div style='text-align:center; padding: 12px 8px; border-radius: 18px; border: {border}; {ring}
-                            background: rgba(255,255,255,0.03); height: 150px; box-sizing: border-box;
-                            display: flex; flex-direction: column; justify-content: center; align-items: center;'>
-                    <div style='font-size: 34px;'>{organ.icon}</div>
-                    <div style='font-weight: 600; font-size: 12px; margin-top: 4px; line-height: 1.2;'>{organ.name}</div>
-                    {value_html}
-                </div>
-                """,
+                f"<div class='bc-organ' style='border: {border}; {ring} height: 150px; border-radius: 18px;'>"
+                f"{glyph}<div class='bc-organ-name'>{organ.name}</div>{value_html}</div>",
                 unsafe_allow_html=True,
             )
             if st.button("Explorar", key=f"twin_shell_select_{organ_id}", width="stretch"):
@@ -428,7 +462,12 @@ def render_organ_panel(organism: DigitalTwinOrganism) -> None:
     organ_id = st.session_state.twin_shell_selected_organ
     organ = organism.organs[organ_id]
 
-    st.markdown(f"## {organ.icon} {organ.name}")
+    color = ORGAN_STATUS_COLOR.get(organ.status, PALETTE.NEUTRAL)
+    st.markdown(
+        f"<div class='bc-title-row'><span class='bc-glyph' aria-hidden='true'>"
+        f"{organ_glyph_svg(organ_id, color, size=34)}</span><h2 style='margin:0;padding:0'>{organ.name}</h2></div>",
+        unsafe_allow_html=True,
+    )
     render_mode_toggle()
     mode = st.session_state.twin_shell_mode
 
@@ -469,6 +508,13 @@ def render_organ_panel(organism: DigitalTwinOrganism) -> None:
             st.json(organ.metrics.signals)
         if organ.pathologies:
             st.caption("Patologías relacionadas: " + ", ".join(organ.pathologies))
+
+    # Rediseño visual (2026-10-19): la lámina del Atlas que explica este
+    # sistema, abierta de entrada en modo Estudiante.
+    plate_key = ORGAN_PLATE.get(organ_id)
+    if plate_key:
+        with st.expander(f"Lámina: {get_plate(plate_key).title}", expanded=(mode == "Student")):
+            render_plate(plate_key)
 
     # AI explanation surfaces directly on the organ, not in a separate chat panel.
     findings = _organ_related_findings(organism, organ_id)
@@ -2036,7 +2082,7 @@ def main() -> None:
     # mano, ni st.header()/st.title()) pese a ser el módulo de la demo. Gana
     # identidad por primera vez, con el sistema de diseño compartido en vez
     # de un estilo ad-hoc.
-    render_module_header("Digital Twin OS", icon="🧬", subtitle="El organismo, no un menú — clic en un órgano revela su fisiología.")
+    render_module_header("Digital Twin OS", icon="🧬", art="twin", subtitle="El organismo, no un menú — clic en un órgano revela su fisiología.")
 
     render_sensor_controls(organism)
     render_ambient_header(organism)

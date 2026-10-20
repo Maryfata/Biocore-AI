@@ -61,7 +61,8 @@ from src.signals.ecg.dynamic_ecg_generator import DynamicECGGenerator
 from src.signals.hrv_tools import POINCARE_CITATION, RR_PLAUSIBLE_MS, parse_rr_file, poincare_sd1_sd2
 from app.utils.design_system import (
     render_module_header, render_section_header, render_error_state, render_empty_state, BADGES,
-    inject_global_theme, resolve_metric_card, render_metric_card,
+    inject_global_theme, resolve_metric_card, render_metric_card, render_plate,
+    brand_block_html, session_status_html,
 )
 from app.utils.patient_session import (
     get_active_patient_display_name,
@@ -162,7 +163,9 @@ st.set_page_config(
     page_title="BIOCORE AI — Plataforma Integrada",
     page_icon="🧬",
     layout="wide",
-    initial_sidebar_state="expanded",
+    # Rediseño visual (2026-10-19): "auto" = abierta en computadora, cerrada
+    # en el teléfono (con "expanded" tapaba toda la pantalla al entrar).
+    initial_sidebar_state="auto",
     menu_items={
         # "Get Help"/"Report a bug"/"About" son claves reservadas de la API de
         # Streamlit (st.set_page_config) -- Streamlit solo reconoce estos 3
@@ -452,7 +455,7 @@ def render_ecg_lab_page() -> None:
     Final (2026-09-22): `validation="VALIDATED"` + el texto verbatim de
     la firma del experto (antes, texto provisional de Tanda 1)."""
     render_module_header(
-        "ECG Lab", icon="🫀",
+        "ECG Lab", icon="🫀", art="ecg",
         validation="VALIDATED",
         validation_detail=_ECG_VALIDATION_DETAIL,
     )
@@ -652,7 +655,7 @@ def render_biomarkers_page() -> None:
     # legend de abajo (Eje A por métrica) sin duplicarlo: esto es el
     # Eje C, el nivel del MÓDULO completo.
     render_module_header(
-        "Biomarkers Lab", icon="🧬",
+        "Biomarkers Lab", icon="🧬", art="biomarkers",
         validation="HEURISTIC",
         validation_detail=_BIOMARKERS_VALIDATION_DETAIL,
     )
@@ -942,7 +945,7 @@ def render_emg_page() -> None:
     # "HEURISTIC"`. Texto verbatim, con la distinción explícita entre las
     # dos partes del lab en la propia cita.
     render_module_header(
-        "EMG Muscle Lab", icon="🦾",
+        "EMG Muscle Lab", icon="🦾", art="emg",
         validation="HEURISTIC",
         validation_detail=_EMG_VALIDATION_DETAIL,
     )
@@ -1054,6 +1057,9 @@ def render_emg_page() -> None:
     elif view == 'Educativa':
         st.markdown('### Vista Educativa')
         st.write('Visualiza activación, rectificación y aprende sobre fatiga muscular.')
+        # Rediseño visual (2026-10-19): de dónde sale la señal -- la unidad
+        # motora y por qué la amplitud crece con la fuerza.
+        render_plate('motor_unit')
         st.line_chart(signal)
         st.plotly_chart(PLOTLY_GO.Figure(PLOTLY_GO.Scatter(y=signal, name='Raw EMG')), width="stretch")
 
@@ -1769,7 +1775,10 @@ def render_ecg_monitor_page() -> None:
             'His Bundle': 'Haz de His: conduce el impulso hacia las ramas ventriculares.',
             'Purkinje': 'Fibras de Purkinje: distribución rápida que sincroniza la contracción ventricular.'
         }
-        st.markdown(f"**{part}**: {explanations.get(part, '')}")
+        # Rediseño visual (2026-10-19): sin la clave en inglés ("AV Node")
+        # delante del texto, que ya empieza con el nombre en español.
+        name, _, rest = explanations.get(part, '').partition(': ')
+        st.markdown(f"**{name}**: {rest}" if rest else name)
 
     if view == 'Clínica':
         st.markdown('### Vista Clínica')
@@ -1819,7 +1828,7 @@ def render_ecg_monitor_page() -> None:
             try:
                 fig = PLOTLY_GO.Figure()
                 fig.add_trace(PLOTLY_GO.Scatter(x=vm, y=signal, name='ECG', mode='lines'))
-                fig.update_layout(template='plotly_dark', height=360, title='ECG — Señal')
+                fig.update_layout(height=360, title='ECG — Señal')
                 st.plotly_chart(fig, width="stretch")
             except Exception:
                 st.line_chart(signal)
@@ -1828,17 +1837,23 @@ def render_ecg_monitor_page() -> None:
 
         st.markdown('#### Fisiología dinámica — selecciona un segmento para ver eventos:')
         seg = st.selectbox('Segmento', ['P', 'QRS', 'T'])
-        if seg == 'P':
-            st.write('- Evento eléctrico: despolarización atrial (onda P).')
-            st.write('- Evento mecánico: contracción atrial, contribuye al llenado ventricular.')
-            st.write('- Evento hemodinámico: ligero aumento en presión auricular y llenado ventricular.')
-        elif seg == 'QRS':
-            st.write('- Evento eléctrico: despolarización ventricular (complejo QRS).')
-            st.write('- Evento mecánico: contracción ventricular y eyección sistólica.')
-            st.write('- Evento hemodinámico: aumento de presión arterial sistólica y gasto cardiaco.')
-        else:
-            st.write('- Evento eléctrico: repolarización ventricular (onda T).')
-            st.write('- Evento mecánico: relajación ventricular y inicio del llenado.')
+        # Rediseño visual (2026-10-19): la lámina del complejo ECG resalta el
+        # segmento elegido -- la explicación queda al lado de su dibujo.
+        col_plate, col_text = st.columns([3, 2])
+        with col_plate:
+            render_plate('ecg_complex', highlight=seg)
+        with col_text:
+            if seg == 'P':
+                st.write('- Evento eléctrico: despolarización atrial (onda P).')
+                st.write('- Evento mecánico: contracción atrial, contribuye al llenado ventricular.')
+                st.write('- Evento hemodinámico: ligero aumento en presión auricular y llenado ventricular.')
+            elif seg == 'QRS':
+                st.write('- Evento eléctrico: despolarización ventricular (complejo QRS).')
+                st.write('- Evento mecánico: contracción ventricular y eyección sistólica.')
+                st.write('- Evento hemodinámico: aumento de presión arterial sistólica y gasto cardiaco.')
+            else:
+                st.write('- Evento eléctrico: repolarización ventricular (onda T).')
+                st.write('- Evento mecánico: relajación ventricular y inicio del llenado.')
 
         st.markdown('#### Diagnóstico diferencial (ejemplo)')
         st.write('Si observa elevación persistente de ST en derivaciones contiguas:')
@@ -1848,15 +1863,18 @@ def render_ecg_monitor_page() -> None:
 
     elif view == 'Educativa':
         st.markdown('### Vista Educativa — Anatomía interactiva')
+        # Rediseño visual (2026-10-19): cada botón resalta su estructura en la
+        # lámina del sistema de conducción (y la elección se mantiene entre
+        # clics, en vez de desaparecer en el siguiente rerun).
         cols = st.columns(4)
-        if cols[0].button('Nodo SA'):
-            show_anatomy('SA Node')
-        if cols[1].button('Nodo AV'):
-            show_anatomy('AV Node')
-        if cols[2].button('Haz de His'):
-            show_anatomy('His Bundle')
-        if cols[3].button('Fibras Purkinje'):
-            show_anatomy('Purkinje')
+        for col, (label, part) in zip(cols, (('Nodo SA', 'SA Node'), ('Nodo AV', 'AV Node'),
+                                             ('Haz de His', 'His Bundle'), ('Fibras Purkinje', 'Purkinje'))):
+            if col.button(label):
+                st.session_state['ecg_anatomy_part'] = part
+        anatomy_part = st.session_state.get('ecg_anatomy_part')
+        if anatomy_part:
+            show_anatomy(anatomy_part)
+        render_plate('conduction', highlight=anatomy_part)
 
         st.markdown('### Timeline fisiológica')
         st.write('Despolarización → Contracción → Eyección → Relajación → Llenado ventricular')
@@ -2023,7 +2041,7 @@ def render_multisensor_page() -> None:
     # "heuristico") y texto actualizado al verbatim de la firma del
     # experto -- ver `_MULTISENSOR_VALIDATION_DETAIL`.
     render_module_header(
-        "Multisensor Fusion Lab", icon="🔗",
+        "Multisensor Fusion Lab", icon="🔗", art="multisensor",
         validation="HEURISTIC",
         validation_detail=_MULTISENSOR_VALIDATION_DETAIL,
     )
@@ -2286,15 +2304,43 @@ def render_hrv_poincare(rr_ms: np.ndarray) -> None:
     with c2:
         x, y = rr_ms[:-1], rr_ms[1:]
         if PLOTLY_OK:
+            # Rediseño visual (2026-10-19): la elipse SD1/SD2 se dibuja SOBRE
+            # los puntos reales, centrada en su media y girada 45° (SD2 a lo
+            # largo de la identidad, SD1 perpendicular, Brennan 2001) -- la
+            # geometría que miden SD1/SD2 queda a la vista. Colores: paleta
+            # categórica validada (`chartCategoricalColors`), texto en tinta.
+            series_pts, series_ell = '#3987e5', '#d95926'
+            cx, cy = float(np.mean(x)), float(np.mean(y))
+            theta = np.linspace(0, 2 * np.pi, 120)
+            u, w = sd2 * np.cos(theta), sd1 * np.sin(theta)
+            ex, ey = cx + (u - w) / np.sqrt(2), cy + (u + w) / np.sqrt(2)
             fig = PLOTLY_GO.Figure()
-            fig.add_trace(PLOTLY_GO.Scatter(x=x, y=y, mode='markers', name='RRₙ → RRₙ₊₁',
-                                            marker=dict(size=6, opacity=0.7)))
             lo, hi = float(min(x.min(), y.min())), float(max(x.max(), y.max()))
             fig.add_trace(PLOTLY_GO.Scatter(x=[lo, hi], y=[lo, hi], mode='lines', name='identidad',
-                                            line=dict(dash='dot', width=1)))
-            fig.update_layout(template='plotly_dark', height=320, xaxis_title='RRₙ (ms)',
-                              yaxis_title='RRₙ₊₁ (ms)', showlegend=False,
-                              margin=dict(l=40, r=10, t=10, b=40))
+                                            line=dict(color='#5d6b92', width=1), hoverinfo='skip',
+                                            showlegend=False))
+            fig.add_trace(PLOTLY_GO.Scatter(x=x, y=y, mode='markers', name='RRₙ → RRₙ₊₁',
+                                            marker=dict(size=8, color=series_pts, opacity=0.75,
+                                                        line=dict(width=2, color='#0f172a')),
+                                            hovertemplate='RRₙ %{x:.0f} ms<br>RRₙ₊₁ %{y:.0f} ms<extra></extra>'))
+            fig.add_trace(PLOTLY_GO.Scatter(x=ex, y=ey, mode='lines', name='elipse SD1/SD2',
+                                            line=dict(color=series_ell, width=2), hoverinfo='skip'))
+            d2 = sd2 / np.sqrt(2)
+            d1 = sd1 / np.sqrt(2)
+            fig.add_trace(PLOTLY_GO.Scatter(x=[cx - d2, cx + d2], y=[cy - d2, cy + d2], mode='lines',
+                                            line=dict(color=series_ell, width=1.5), hoverinfo='skip',
+                                            showlegend=False))
+            fig.add_trace(PLOTLY_GO.Scatter(x=[cx + d1, cx - d1], y=[cy - d1, cy + d1], mode='lines',
+                                            line=dict(color=series_ell, width=1.5), hoverinfo='skip',
+                                            showlegend=False))
+            fig.add_annotation(x=cx + d2, y=cy + d2, text=f'SD2 {sd2:.0f} ms', showarrow=False,
+                               xanchor='left', yanchor='bottom', font=dict(color='#e0e7ff', size=12))
+            fig.add_annotation(x=cx - d1, y=cy + d1, text=f'SD1 {sd1:.0f} ms', showarrow=False,
+                               xanchor='right', yanchor='bottom', font=dict(color='#e0e7ff', size=12))
+            fig.update_layout(height=340, xaxis_title='RRₙ (ms)', yaxis_title='RRₙ₊₁ (ms)',
+                              legend=dict(orientation='h', yanchor='bottom', y=1.02, x=0),
+                              margin=dict(l=40, r=10, t=30, b=40))
+            fig.update_yaxes(scaleanchor='x', scaleratio=1)
             st.plotly_chart(fig, width="stretch")
         else:
             import pandas as pd
@@ -2306,7 +2352,7 @@ def render_hrv_page() -> None:
     # SDNN/RMSSD (dominio temporal) siguen el estándar Task Force ESC/
     # NASPE 1996, citable, `validation="VALIDATED"`. Texto verbatim.
     render_module_header(
-        "HRV Analysis", icon="📈",
+        "HRV Analysis", icon="📈", art="hrv",
         validation="VALIDATED",
         validation_detail=_HRV_VALIDATION_DETAIL,
     )
@@ -2414,7 +2460,7 @@ def render_hrv_page() -> None:
         if PLOTLY_OK:
             fig = PLOTLY_GO.Figure()
             fig.add_trace(PLOTLY_GO.Scatter(x=f, y=pxx, mode='lines', name='PSD'))
-            fig.update_layout(template='plotly_dark', height=320, xaxis_title='Hz', yaxis_title='Power')
+            fig.update_layout(height=320, xaxis_title='Hz', yaxis_title='Power')
             st.plotly_chart(fig, width="stretch")
         else:
             st.line_chart(pxx)
@@ -2428,8 +2474,10 @@ def render_hrv_page() -> None:
     view = render_view_selector(views=['Clínica', 'Educativa', 'Investigación', 'IA', 'Simulación'])
     if view == 'Educativa':
         st.markdown('### Vista Educativa — ¿Qué afecta la HRV?')
-        st.write('- Vagal tone increments raise RMSSD and pNN50.')
-        st.write('- Chronic disease and age tend to lower SDNN.')
+        st.write('- Un tono vagal mayor eleva RMSSD y pNN50.')
+        st.write('- La edad y las enfermedades crónicas tienden a bajar SDNN.')
+        # Rediseño visual (2026-10-19): cómo se pasa del ECG al tacograma.
+        render_plate('tachogram')
         st.line_chart(rr_ms)
     elif view == 'IA':
         st.markdown('### Vista IA — Narrador clínico')
@@ -2524,7 +2572,7 @@ def render_patient_pipeline_page() -> None:
     # impresiones clínicas HUMANAS, ver docstring arriba) -- no produce
     # ninguna inferencia propia que "validar" o "no validar". El concepto
     # de nivel de confianza clínico no aplica a este módulo.
-    render_module_header("Patient Pipeline", icon="👥", validation=None)
+    render_module_header("Patient Pipeline", icon="👥", art="pipeline", validation=None)
     st.markdown('Estado fisiológico real del UPS + impresión clínica humana sobre ese estado, narrados por separado.')
 
     # Fase 3 (paciente único de sesión, 2026-08-30): Patient Pipeline ya NO
@@ -2713,32 +2761,71 @@ def render_patient_pipeline_page() -> None:
 # "🩺 Narrador clínico (IA real)".
 
 
-def main() -> None:
-    init_state()
-    inject_global_theme()
-    
-    st.sidebar.markdown("## ECOSISTEMA BIOCORE AI")
-    selected_hub = st.sidebar.radio('Selecciona un hub', list(HUBS.keys()), index=list(HUBS.keys()).index(st.session_state.selected_hub), label_visibility='hidden')
+HUB_ICONS = {
+    # Material Symbols (incluidos en Streamlit, funcionan sin internet) en
+    # vez de emoji: mismo dibujo en todos los sistemas operativos.
+    "Digital Twin OS": ":material/accessibility_new:",
+    "Learning Hub": ":material/school:",
+    "Clinical Hub": ":material/stethoscope:",
+}
+
+
+def _narrator_ready() -> bool:
+    try:
+        from domain.physiology.narrator.client import is_configured
+        return bool(is_configured())
+    except Exception:
+        return False
+
+
+def render_sidebar():
+    """Barra lateral (rediseño visual 2026-10-19): marca, hub, módulo y el
+    estado real de la sesión -- en lugar de los textos fijos "Control
+    universal"/"Modo plataforma" que no informaban nada."""
+    st.sidebar.markdown(brand_block_html(), unsafe_allow_html=True)
+    hubs = list(HUBS.keys())
+    selected_hub = st.sidebar.radio(
+        'Selecciona un hub', hubs, index=hubs.index(st.session_state.selected_hub),
+        format_func=lambda h: f"{HUB_ICONS.get(h, '')} {h}".strip(), label_visibility='collapsed',
+    )
     if selected_hub != st.session_state.selected_hub:
         st.session_state.selected_hub = selected_hub
         st.session_state.selected_page = HUBS[selected_hub][0]
-    
-    st.sidebar.caption(f"📂 Módulo dentro de **{st.session_state.selected_hub}**:")
-    selected_page = st.sidebar.selectbox('Selecciona un módulo', HUBS[st.session_state.selected_hub], index=HUBS[st.session_state.selected_hub].index(st.session_state.selected_page), label_visibility='collapsed')
-    st.session_state.selected_page = selected_page
-    
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("**Control universal:**")
-    # Consolidación, Tanda 3 (2026-07-13): antes este bullet no decía dónde
-    # vivía el Narrador Clínico (implícitamente, el ahora eliminado AI Hub).
-    # Se deja explícito para no perder capacidad de descubrimiento.
-    st.sidebar.markdown("- 🩺 Narrador Clínico → Digital Twin OS")
 
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("**Modo plataforma:** \nLaboratorio biomédico, clínica, investigación y simulación.")
+    st.sidebar.caption(f"Módulo dentro de **{st.session_state.selected_hub}**:")
+    pages = HUBS[st.session_state.selected_hub]
+    selected_page = st.sidebar.selectbox(
+        'Selecciona un módulo', pages, index=pages.index(st.session_state.selected_page),
+        label_visibility='collapsed',
+    )
+    st.session_state.selected_page = selected_page
+
+    st.sidebar.divider()
+    # El estado se escribe DESPUÉS de dibujar la página (ver main()): así ya
+    # refleja el gemelo/paciente que la página acaba de crear, y sigue
+    # apareciendo aquí arriba, antes de los controles propios de cada lab.
+    slot = st.sidebar.empty()
+    st.sidebar.divider()
+    return slot
+
+
+def render_session_status(slot) -> None:
+    twin_active = 'twin_shell_organism' in st.session_state
+    patient = get_active_patient_display_name() if 'twin_shell_ups_patient_id' in st.session_state else None
+    slot.markdown(
+        session_status_html(twin_active, _narrator_ready(), patient_name=patient),
+        unsafe_allow_html=True,
+    )
+
+
+def main() -> None:
+    init_state()
+    inject_global_theme()
+    status_slot = render_sidebar()
 
     if st.session_state.selected_page:
         render_page_content(st.session_state.selected_page)
+    render_session_status(status_slot)
 
 if __name__ == '__main__':
     main()

@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-10-20 — Rediseño visual: imágenes (Atlas visual) y UI/UX con la guía UI UX Pro Max
+
+**Contexto**: pedido del usuario: "mejora la parte de las imágenes, agrega más imágenes y UI/UX con UI UX Pro Max". Se generó el sistema de diseño con el buscador de UI UX Pro Max para un producto de salud (estilo *Accessible & Ethical*, paleta teal médica, Figtree + Noto Sans, foco visible, movimiento reducido, objetivos de 44 px, sin emoji como íconos) y se aplicó con dos reglas propias del repo: una ilustración no es un dato del paciente, y los colores de estado clínico no se usan como adorno. Ningún cálculo clínico cambió.
+
+### Nuevo: `visualization/art/` — ilustraciones SVG originales, generadas por código
+- **Tira de monitor en cada encabezado** (`strips.py`): cada módulo abre con SU señal sobre la retícula milimétrica del papel de registro, a escala real donde aplica (ECG 25 mm/s, EEG 30 mm/s, respiración 5 mm/s): ECG, EEG alfa, respiración, EMG con ráfagas, tacograma, onda de pulso, tres carriles de monitor (Multisensor), ECG + respiración (gemelo), ECG con el compás midiendo QT y RR (Calculadoras), ondas rotuladas (Academia), estados guardados en el tiempo (Patient Pipeline). Una sola animación de "trazado" al cargar; se apaga con `prefers-reduced-motion`.
+- **Íconos dibujados** (`glyphs.py`) en lugar de emoji: 11 de módulo (24×24) y 5 órganos (corazón anatómico, cerebro, pulmones con árbol bronquial, bíceps, sistema autónomo) para las tarjetas de Digital Twin OS, coloreados por su estado.
+- **9 láminas educativas** (`plates.py`), cada una con "Esquema ilustrativo", explicación en HTML (se lee igual en teléfono) y fuentes: anatomía del complejo ECG, sistema de conducción, derivaciones precordiales V1–V6, sistema hexaxial + triángulo de Einthoven, del ECG al tacograma, sistema 10-20, bandas del EEG, 7 patrones respiratorios y unidad motora/EMG.
+- **Honestidad de los números rotulados**: los intervalos del ECG (PR 177, QRS 96, QT 403 ms) se MIDEN sobre el latido dibujado (`waves.beat_intervals()`); las bandas del EEG usan los límites exactos del analizador (`BAND_LIMITS_HZ`, nueva constante en `src/signals/eeg/eeg_analyzer.py`, mismo cálculo); los patrones respiratorios se dibujan con el mismo `RespiratorySignalGenerator` del laboratorio (sembrado y restaurando el RNG global); SDNN/RMSSD del ejemplo con las mismas fórmulas de `render_hrv_page()`.
+- **Láminas que responden**: la onda P/QRS/T elegida en ECG Lab, la estructura del botón Nodo SA/AV/His/Purkinje (la elección ahora persiste entre clics), los canales EEG en uso, la banda dominante calculada, el patrón respiratorio de la barra lateral y el eje calculado en Calculadoras.
+- `meters.py`: medidor NEWS2 (aquí los colores de estado sí significan riesgo, siempre con rótulo).
+- Ligeras: los trazos se simplifican con Ramer-Douglas-Peucker por debajo de un píxel (la tira de ECG pasa de 34 KB a 7 KB; la galería respiratoria, de 111 KB a 37 KB) y cada dibujo se calcula una vez por proceso (`lru_cache`; son deterministas).
+- Los gráficos del Respiratory Lab usan los mismos colores de flujo/tórax/abdomen que la lámina (antes el tórax iba en `#1d4ed8`, 2.66:1 sobre el fondo); las líneas de referencia de SpO₂ usan la paleta de estado.
+
+### Dónde aparecen
+- **Academia → nueva pestaña "Atlas visual"** con las 9 láminas, filtrables por sistema.
+- ECG Lab (Clínica y Educativa), ECG-12 (la pestaña Educativa, antes solo un aviso, ahora con precordiales + hexaxial), EEG (bandas + 10-20 en lugar de la lista de texto), Respiratory Lab (la galería reemplaza la tarjeta decorativa que repetía el título), HRV (tacograma; la elipse SD1/SD2 se dibuja sobre los puntos reales de Poincaré), EMG (unidad motora), Digital Twin OS (órganos dibujados y la lámina de cada sistema en su panel), Calculadoras (QT, eje sobre el hexaxial en lugar del dial polar, curva PAO₂ vs. altitud con las ciudades y TU FiO₂/PaCO₂, medidor NEWS2).
+
+### Interfaz (UI UX Pro Max + verificación propia)
+- **Tipografía**: Figtree (títulos) y Noto Sans (texto, incluye griego para α β θ δ γ) empaquetadas en `app/static/fonts/` (OFL, ~130 KB): se ven igual sin internet. Escala 36/24/21/18/16/14 px.
+- **Paleta**: primario teal `#099fbd` (el `#0891B2` de UI UX Pro Max ajustado por cálculo para modo oscuro): 5.70:1 como texto sobre el fondo y 4.55:1 en la barra lateral (el azul anterior daba 2.66:1: la pestaña activa y el valor de los sliders no se leían), 3.13:1 con la palomita blanca, texto oscuro sobre el botón primario. Bordes de controles a 3.38:1 (WCAG 1.4.11). Fondo plano, sin el degradado decorativo.
+- **Gráficos**: paleta categórica validada con el validador de la skill de dataviz (daltonismo ΔE ≥ 8.4) en `chartCategoricalColors`; con 10 entradas, porque Plotly en Streamlit 1.66 ignora la lista si no son exactamente 10 (verificado con capturas). Se retiró `template='plotly_dark'` (7 usos) para que todos los gráficos tomen el tema de la app.
+- **Encabezado de módulo**: migas de pan (hub › módulo), ícono, el único `<h1>` y la tira. El marcador de validación no cambió.
+- **Barra lateral**: marca BIOCORE, hubs con íconos Material, y el estado real de la sesión (gemelo/paciente, narrador IA con o sin clave) en lugar de "Control universal"/"Modo plataforma". En el teléfono empieza cerrada (`initial_sidebar_state="auto"`). Sin el botón "Deploy" (`toolbarMode = "minimal"`).
+- **Accesibilidad**: foco visible de 3 px en todo control, objetivos de 44 px, transiciones de 150 ms, `prefers-reduced-motion`, cada SVG con `role="img"` + `<title>`/`<desc>`, color de estado siempre acompañado de texto.
+- **Digital Twin OS**: estado global sin el rótulo en mayúsculas espaciadas; "Riesgo" coloreado por su propio nivel (antes "BAJO" salía amarillo); colores de la paleta compartida en vez de neón.
+- Pestañas de Calculadoras y Academia con íconos Material en vez de emoji.
+
+### Pruebas
+`tests/test_illustrations.py` (70): SVG válido y accesible, determinismo, seguridad para Markdown (sin líneas en blanco ni signos de pesos), sin colores de estado en el arte, números rotulados = números calculados, RNG global intacto, contraste WCAG de los tokens, fuentes del `config.toml` presentes, e integración AppTest en cada página. `tests/test_ecg_hr_detector_consolidation.py`: las aserciones "no aparece 220" ahora ignoran el contenido de los SVG (las coordenadas de la lámina contienen "220.2"); así también son más estrictas con el HR correcto.
+
 ## 2026-10-19 (b) — Calculadoras Clínicas, Academia usable sin clave de IA, Modo Rural, HRV desde archivo + Poincaré
 
 **Contexto**: segunda tanda del día. Recorrido de todos los módulos con AppTest y lectura de los caminos que un `except` silenciaba. Dos módulos estaban rotos de forma invisible para la suite (Academia, espectro HRV) y uno era inutilizable sin `ANTHROPIC_API_KEY` (quiz y casos ciegos).

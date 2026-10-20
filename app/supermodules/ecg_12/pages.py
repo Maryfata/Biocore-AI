@@ -6,7 +6,7 @@ import os
 import runpy
 import streamlit as st
 
-from app.utils.design_system import render_section_header, render_error_state, render_empty_state
+from app.utils.design_system import render_section_header, render_error_state, render_empty_state, render_plate
 
 # Reubicado (Tanda de eliminación de pages_legacy, Movimiento 1, 2026-07-13):
 # antes apuntaba a app/pages_legacy/6_📋_ECG-12-Derivaciones.py — mismo contenido,
@@ -44,10 +44,18 @@ def render_views():
 
     with tabs[1]:
         render_section_header("Vista Educativa")
+        # Rediseño visual (2026-10-19): las dos láminas que explican de dónde
+        # salen las 12 derivaciones -- el plano horizontal (V1-V6) y el
+        # frontal (sistema hexaxial / triángulo de Einthoven).
+        col_precordial, col_hexaxial = st.columns(2)
+        with col_precordial:
+            render_plate("precordial")
+        with col_hexaxial:
+            render_plate("hexaxial")
         st.info(
             "🩺 **Derivaciones ECG** — la tabla real de las 12 derivaciones (localización, "
             "territorio, cara afectada) está disponible en **Learning Hub → 🏫 Academia Clinica → "
-            "Lecciones y Casos → 📖 Teoría**."
+            "Lecciones y Casos → 📖 Teoría**; todas las láminas, en **Atlas visual**."
         )
 
 

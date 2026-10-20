@@ -42,8 +42,11 @@ def test_calculators_page_renders_every_tab(monkeypatch):
     at = _app("Clinical Hub", "🧮 Calculadoras Clínicas", monkeypatch)
     at.run()
     assert not at.exception
-    assert [t.label for t in at.tabs][:6] == ["🫀 ECG", "🩸 Hemodinamia", "🫁 Oxigenación",
-                                               "⚖️ Antropometría", "🚨 Escalas", "📄 Informe"]
+    from app.supermodules.calculators.pages import CALC_TABS
+    # Rediseño visual (2026-10-19): íconos Material en vez de emoji.
+    assert [t.label for t in at.tabs][:6] == CALC_TABS
+    assert [label.split(": ", 1)[1] for label in CALC_TABS] == [
+        "ECG", "Hemodinamia", "Oxigenación", "Antropometría", "Escalas", "Informe"]
     html = " ".join(m.value for m in at.markdown)
     for label in ("QTc Bazett", "Eje del QRS", "PAM", "Índice de choque", "Índice cardiaco", "PAO₂ (alveolar)",
                   "PaO₂/FiO₂", "IMC", "ASC (Mosteller)", "NEWS2", "qSOFA", "Glasgow"):

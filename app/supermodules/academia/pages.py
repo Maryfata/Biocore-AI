@@ -22,7 +22,11 @@ entre ambas páginas de Academia.
 import streamlit as st
 import pandas as pd
 
-from app.utils.design_system import render_module_header, render_error_state, render_ai_feedback_off_notice
+from app.utils.design_system import (
+    render_module_header, render_error_state, render_ai_feedback_off_notice, render_plate,
+)
+from visualization.art import ATLAS, PLATES
+from visualization.art.plates import ATLAS_TOPICS
 from domain.physiology.narrator import (
     Finding,
     FindingsContext,
@@ -573,18 +577,49 @@ def render_tutor_tab() -> None:
 # dejarla vacía con un disclaimer.
 
 
+ACADEMIA_TABS = [
+    ":material/menu_book: Lecciones y Casos",
+    ":material/photo_library: Atlas visual",
+    ":material/smart_toy: Tutor IA",
+]
+
+
+def render_atlas_tab() -> None:
+    """Atlas visual (rediseño 2026-10-19): todas las láminas de
+    `visualization/art/plates.py` en un solo lugar, agrupadas por sistema.
+    Son esquemas dibujados por código -- cada uno dice "Esquema ilustrativo"
+    y lleva sus fuentes --, los mismos que aparecen dentro de cada
+    laboratorio (ECG Lab, EEG, Respiratory, HRV, EMG, Calculadoras, Twin
+    OS). Contenido educativo estándar con cita, no texto generado por IA."""
+    st.markdown("### Atlas visual")
+    st.write(
+        "Láminas para estudiar la fisiología que miden los laboratorios. Todas funcionan sin internet "
+        "y llevan sus fuentes; dentro de cada laboratorio se resaltan según lo que elijas."
+    )
+    options = ["Todos", *ATLAS_TOPICS]
+    topic = st.segmented_control("Sistema", options, default="Todos", key="academia_atlas_topic")
+    keys = [k for k in ATLAS if topic in (None, "Todos") or PLATES[k].topic == topic]
+    st.caption(f"{len(keys)} láminas")
+    cols = st.columns(2)
+    for i, key in enumerate(keys):
+        with cols[i % 2]:
+            render_plate(key)
+
+
 def main() -> None:
     # NOTE: st.set_page_config() is already called once by app/main.py — must
     # not be repeated here (this was the root cause of the old Academia
     # Clínica "Clínica" tab silently failing every render).
-    render_module_header("Academia BIOCORE AI", icon="🏫")
-    st.caption("Lecciones, casos clínicos y tutor IA.")
+    render_module_header("Academia BIOCORE AI", icon="🏫", art="academia")
+    st.caption("Lecciones, casos clínicos, atlas visual y tutor IA.")
 
-    tabs = st.tabs(["📝 Lecciones y Casos", "📖 Tutor IA"])
+    tabs = st.tabs(ACADEMIA_TABS)
 
     with tabs[0]:
         render_lessons_quizzes_tab()
     with tabs[1]:
+        render_atlas_tab()
+    with tabs[2]:
         render_tutor_tab()
 
 

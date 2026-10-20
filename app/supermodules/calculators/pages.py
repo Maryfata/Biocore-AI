@@ -36,11 +36,22 @@ from app.utils.design_system import (
     render_error_state,
     render_metric_card,
     render_module_header,
+    render_plate,
     resolve_metric_card,
 )
 from clinical import calculators as calc
+from visualization.art.meters import news2_meter_svg
 
 _REPORT_KEY = "calc_report_cards"
+
+CALC_TABS = [
+    ":material/ecg_heart: ECG",
+    ":material/bloodtype: Hemodinamia",
+    ":material/pulmonology: Oxigenación",
+    ":material/monitor_weight: Antropometría",
+    ":material/emergency: Escalas",
+    ":material/description: Informe",
+]
 
 # Rango de cada campo numérico: (mínimo, máximo, paso, formato, valor inicial).
 # Única fuente para el widget Y para recortar los valores que llegan del
@@ -199,6 +210,8 @@ def _render_ecg_tab() -> None:
     st.caption(f"RR = 60/FC = {60.0 / hr:.3f} s. Umbrales: {calc.QTC_THRESHOLDS_CITATION}; {calc.QTC_500_CITATION}. "
                "La misma guía recomienda corregir con funciones de regresión lineal (p. ej. Framingham, "
                "Hodges) en lugar de Bazett, que sobrecorrige a FC altas.")
+    with st.expander("Lámina: dónde se mide el QT"):
+        render_plate("ecg_complex", highlight="QT")
 
     st.markdown("---")
     st.markdown("#### Frecuencia cardiaca desde el trazo")
@@ -233,32 +246,14 @@ def _render_ecg_tab() -> None:
     with c3:
         _card("qrs_axis", "Eje del QRS", f"{axis:+.0f}°", classification=calc.classify_qrs_axis(axis),
               citation=calc.QRS_AXIS_CITATION)
-        _render_axis_dial(axis)
+    # Rediseño visual (2026-10-19): el eje calculado se marca sobre la lámina
+    # del sistema hexaxial (antes un dial polar de Plotly sin rótulos de
+    # derivación legibles).
+    render_plate("hexaxial", axis_deg=axis)
 
 
-def _render_axis_dial(axis_deg: float) -> None:
-    """Sistema hexaxial: 0° a la derecha (DI), +90° abajo (aVF), sector
-    normal −30°..+90° sombreado."""
-    try:
-        import plotly.graph_objects as go
-    except ImportError:
-        return
-    sector = [-30 + i * 5 for i in range(25)]  # −30..+90
-    fig = go.Figure()
-    fig.add_trace(go.Scatterpolar(r=[0] + [1] * len(sector) + [0], theta=[0] + sector + [0], fill="toself",
-                                  fillcolor="rgba(57,217,138,0.15)", line=dict(width=0), hoverinfo="skip",
-                                  name="normal"))
-    fig.add_trace(go.Scatterpolar(r=[0, 1], theta=[axis_deg, axis_deg], mode="lines+markers",
-                                  line=dict(color=PALETTE.ACCENT_ON_DARK, width=4), marker=dict(size=[0, 10]),
-                                  name="eje"))
-    fig.update_layout(
-        template="plotly_dark", height=260, showlegend=False, margin=dict(l=30, r=30, t=10, b=10),
-        polar=dict(radialaxis=dict(visible=False, range=[0, 1]),
-                   angularaxis=dict(rotation=0, direction="clockwise", tickvals=[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330],
-                                    ticktext=["0° DI", "+30°", "+60° DII", "+90° aVF", "+120° DIII", "+150°",
-                                              "±180°", "−150° aVR", "−120°", "−90°", "−60°", "−30° aVL"])),
-    )
-    st.plotly_chart(fig, width="stretch", key="calc_axis_chart")
+# `_render_axis_dial()` (dial polar de Plotly) se retiró el 2026-10-19: su
+# único llamador ahora dibuja la lámina hexaxial con el eje marcado.
 
 
 def _render_hemodynamics_tab() -> None:
@@ -362,6 +357,7 @@ def _render_oxygenation_tab() -> None:
                   citation="la regla del valor esperado (edad/4 + 4) solo aplica en aire ambiente")
         _card("pf_ratio", "PaO₂/FiO₂", f"{pf:.0f} mmHg", classification=calc.classify_pf_ratio(pf),
               citation=calc.BERLIN_CITATION)
+    _render_altitude_chart(altitude, fio2, paco2, place)
     st.caption(
         "Por qué importa la altitud: en la Ciudad de México la presión barométrica es ~580 mmHg, así "
         "que la PAO₂ en aire ambiente ronda 60 mmHg en lugar de ~100 al nivel del mar — una PaO₂ que "
@@ -369,6 +365,47 @@ def _render_oxygenation_tab() -> None:
         "Berlín: el diagnóstico de SDRA exige además PEEP ≥5 cmH₂O, temporalidad, imagen y origen no "
         "cardiogénico."
     )
+
+
+def _render_altitude_chart(altitude: float, fio2: float, paco2: float, place: str) -> None:
+    """PAO₂ esperada vs. altitud con TUS FiO₂ y PaCO₂ (rediseño visual
+    2026-10-19). Misma ecuación y presión estándar que las tarjetas de
+    arriba (`calc.alveolar_po2`, `calc.barometric_pressure_mmhg`): la curva
+    es esa fórmula evaluada de 0 a 3 200 m, con las ciudades marcadas."""
+    try:
+        import numpy as np
+        import plotly.graph_objects as go
+    except ImportError:
+        return
+    xs = np.linspace(0, 3200, 81)
+    ys = [calc.alveolar_po2(fio2, paco2, calc.barometric_pressure_mmhg(h)) for h in xs]
+    series = "#3987e5"  # slot 1 de chartCategoricalColors
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=xs, y=ys, mode="lines", line=dict(color=series, width=2), name="PAO₂",
+                             hovertemplate="%{x:.0f} m: PAO₂ %{y:.0f} mmHg<extra></extra>"))
+    cities = list(calc.CITY_ALTITUDES_M.items())
+    cy = [calc.alveolar_po2(fio2, paco2, calc.barometric_pressure_mmhg(h)) for _, h in cities]
+    # Rótulos directos: Puebla y Ciudad de México están a ~100 m de distancia,
+    # así que se reparten arriba/abajo para no encimarse.
+    positions = {"Nivel del mar": "bottom right", "Puebla": "top left", "Ciudad de México": "bottom right"}
+    fig.add_trace(go.Scatter(
+        x=[h for _, h in cities], y=cy, mode="markers+text", text=[n for n, _ in cities],
+        textposition=[positions.get(n, "top right") for n, _ in cities],
+        textfont=dict(color=PALETTE.TEXT, size=12),
+        marker=dict(size=9, color=series, line=dict(width=2, color=PALETTE.BACKGROUND)),
+        hovertemplate="%{text}: %{x:.0f} m, PAO₂ %{y:.0f} mmHg<extra></extra>", name="ciudades",
+    ))
+    here = calc.alveolar_po2(fio2, paco2, calc.barometric_pressure_mmhg(altitude))
+    fig.add_trace(go.Scatter(x=[altitude], y=[here], mode="markers", name="tu gasometría",
+                             marker=dict(size=16, color=PALETTE.TRACE, symbol="circle-open", line=dict(width=3)),
+                             hovertemplate=f"{place}: PAO₂ %{{y:.0f}} mmHg<extra></extra>"))
+    fig.update_layout(height=320, showlegend=False, margin=dict(l=50, r=20, t=40, b=45),
+                      title=dict(text=f"PAO₂ esperada según la altitud (FiO₂ {fio2:.2f}, PaCO₂ {paco2:.0f} mmHg)",
+                                 font=dict(size=14)),
+                      xaxis_title="Altitud (m s. n. m.)", yaxis_title="PAO₂ (mmHg)")
+    lo, hi = float(min(ys)), float(max(ys))
+    fig.update_yaxes(range=[lo - 0.08 * (hi - lo) - 2, hi + 0.12 * (hi - lo) + 2])
+    st.plotly_chart(fig, width="stretch", key="calc_altitude_chart")
 
 
 def _render_anthropometry_tab() -> None:
@@ -414,6 +451,10 @@ def _render_scores_tab() -> None:
                             alert=consciousness == "Alerta", temperature_c=temp, spo2_scale=int(scale))
     _card("news2", "NEWS2", f"{news.total} puntos", classification=calc.classify_news2(news),
           citation=calc.NEWS2_CITATION)
+    st.markdown(
+        f"<div class='bc-meter'>{news2_meter_svg(news.total, any_single_3=news.any_single_3)}</div>",
+        unsafe_allow_html=True,
+    )
     st.dataframe(
         [{"Parámetro": k, "Puntos": v} for k, v in news.components.items()],
         hide_index=True, width="stretch",
@@ -487,13 +528,14 @@ def run() -> None:
     # trae su propia cita en su tarjeta, pero el módulo como conjunto aún no
     # tiene firma del experto -- una etiqueta única mentiría sobre alguna parte.
     render_module_header(
-        "Calculadoras Clínicas", icon="🧮",
+        "Calculadoras Clínicas", icon="🧮", art="calculators",
         subtitle="Fórmulas y escalas publicadas, cada una con su cita. Uso educativo — "
                  "una clasificación es la lectura de un número, no un diagnóstico.",
         validation=None,
     )
     _render_twin_banner()
-    tabs = st.tabs(["🫀 ECG", "🩸 Hemodinamia", "🫁 Oxigenación", "⚖️ Antropometría", "🚨 Escalas", "📄 Informe"])
+    # Íconos Material (incluidos en Streamlit, sin internet) en vez de emoji.
+    tabs = st.tabs(CALC_TABS)
     with tabs[0]:
         _render_ecg_tab()
     with tabs[1]:
