@@ -1,125 +1,72 @@
-"""BIOCORE AI Engine Layer - Complete Signal Processing & Analysis Framework
+"""BIOCORE AI Engine Layer - Digital Twin Physiological Intelligence
 
-This module exports all signal intelligence engines and orchestration components.
-Provides comprehensive biomedical signal analysis, multisensor fusion, and digital twin capabilities.
+This module exports all digital twin and physiological analysis engines.
 """
 
-# Core Orchestration
-from .orchestrator import (
-    BiomedicalOrchestrator,
-    SignalRouter,
-    FusionEngine,
-    SessionManager,
-    ModuleRegistry,
-    SignalMetadata,
-    AnalysisResult,
-    SignalType,
-    AnalysisMode,
-    orchestrator,
-)
+# Digital Twin Organism (Core System)
+try:
+    from .digital_twin_organism import (
+        DigitalTwinOrganism,
+        OrganSystem,
+        OrganMetrics,
+        OrganHealthStatus,
+    )
+except ImportError as e:
+    print(f"Warning: Could not import DigitalTwinOrganism: {e}")
 
-# Pipeline Coordinator (Main Integration Point)
-from .pipeline_coordinator import (
-    BiomedicalSignalPipeline,
-    PipelineEvent,
-    PipelineStage,
-    AnalysisResult as PipelineAnalysisResult,
-    pipeline,
-)
+# NOTE: CausalityEngine/CausalEvent (causality_engine.py) fueron retirados el
+# 2026-08-19 (Art. I, Capa 3 de honestidad) -- CAUSAL_RULES tenía confidence
+# hardcodeado (0.75-0.95) por regla, sin cálculo. Reemplazado en la UI desde
+# el 2026-07-13 por el narrador causal real (domain/physiology/narrator/causal.py,
+# que reutiliza solo 2 de las 8 reglas como "reference_confidence" citado al
+# modelo, nunca como dato crudo). Confirmado sin llamadores vivos antes de
+# retirarlo -- ver CHANGELOG.md.
 
-# Physiology Core & Digital Twin
-from .digital_twin import DigitalTwinEngine, DigitalTwinState
-from .physiology_core import PhysiologyCoreEngine, PhysiologySignal, PhysiologicalState
+# Simulation Engine
+try:
+    from .simulation_engine import (
+        SimulationEngine,
+        SimulationScenario,
+        SimulationTimestep,
+    )
+except ImportError as e:
+    print(f"Warning: Could not import SimulationEngine: {e}")
 
-# Signal Intelligence Engines
-from .signal_intelligence import (
-    # ECG Engine
-    ECGEngine,
-    ECGAnalysis,
-    CardiacRhythm,
-    
-    # EEG Engine
-    EEGEngine,
-    EEGAnalysis,
-    
-    # EMG Engine
-    EMGEngine,
-    EMGAnalysis,
-    
-    # Respiratory Engine
-    RespiratoryEngine,
-    RespiratoryAnalysis,
-    
-    # PPG/SpO2 Engine
-    PPGEngine,
-    PPGAnalysis,
-)
+# Prediction Engine
+try:
+    from .prediction_engine import (
+        PredictionEngine,
+        RiskAssessment,
+        GlobalRiskAssessment,
+    )
+except ImportError as e:
+    print(f"Warning: Could not import PredictionEngine: {e}")
 
-# HRV Engine
-from .hrv_engine import (
-    HRVEngine,
-    HRVMetrics,
-    AutonomicState,
-)
-
-# Multisensor Fusion
-from .fusion_engine import (
-    FusionEngine as MultisensorFusionEngine,
-    MultisensorFusionState,
-    CouplingIndex,
-    SystemInteraction,
-)
+# NOTE: PhysiologicalFusionEngine/OrganState/HealthStatus (physiological_fusion.py),
+# DigitalTwinComponent (digital_twin_component.py), and DigitalTwinMultisystem
+# (digital_twin_multisystem.py) were all retired during the 2026-07-01 engine
+# consolidation. Their real computations (organ health scoring, system couplings,
+# anomaly/alert detection, high-fidelity per-organ parameters, intervention/prediction
+# simulation) were ported into DigitalTwinOrganism (organs[...].detail + the
+# stress/recovery/sleep/performance cross-cutting states). See _archive/README.md.
 
 __all__ = [
-    # Orchestration
-    'BiomedicalOrchestrator',
-    'SignalRouter',
-    'FusionEngine',
-    'SessionManager',
-    'ModuleRegistry',
-    'SignalMetadata',
-    'AnalysisResult',
-    'SignalType',
-    'AnalysisMode',
-    'orchestrator',
-    
-    # Pipeline Coordinator
-    'BiomedicalSignalPipeline',
-    'PipelineEvent',
-    'PipelineStage',
-    'PipelineAnalysisResult',
-    'pipeline',
-    
-    # Digital Twin & Physiology
-    'DigitalTwinEngine',
-    'DigitalTwinState',
-    'PhysiologyCoreEngine',
-    'PhysiologySignal',
-    'PhysiologicalState',
-    
-    # Signal Intelligence
-    'ECGEngine',
-    'ECGAnalysis',
-    'CardiacRhythm',
-    'EEGEngine',
-    'EEGAnalysis',
-    'EMGEngine',
-    'EMGAnalysis',
-    'RespiratoryEngine',
-    'RespiratoryAnalysis',
-    'PPGEngine',
-    'PPGAnalysis',
-    
-    # HRV
-    'HRVEngine',
-    'HRVMetrics',
-    'AutonomicState',
-    
-    # Multisensor Fusion
-    'MultisensorFusionEngine',
-    'MultisensorFusionState',
-    'CouplingIndex',
-    'SystemInteraction',
+    # Digital Twin Organism (canonical)
+    'DigitalTwinOrganism',
+    'OrganSystem',
+    'OrganMetrics',
+    'OrganHealthStatus',
+
+    # Simulation Engine
+    'SimulationEngine',
+    'SimulationScenario',
+    'SimulationTimestep',
+
+    # Prediction Engine
+    'PredictionEngine',
+    'RiskAssessment',
+    'GlobalRiskAssessment',
 ]
+
 
 

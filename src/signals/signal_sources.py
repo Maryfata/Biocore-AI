@@ -217,6 +217,20 @@ class ESP32SignalSource(BaseSignalSource):
     def is_connected(self) -> bool:
         return self.streamer.is_connected()
 
+    def is_hardware_present(self) -> bool:
+        """True SOLO si hay una conexión serial real y activa.
+
+        Tanda 4, Pieza 2 (2026-07-04): a diferencia de `is_connected()` (que
+        el propio `ESP32ECGStreamer.is_connected()` define como
+        `self.connected and (self.serial_conn is not None or
+        self.simulate_if_missing)` — es decir, sigue siendo True incluso en
+        modo simulado sin hardware), esto comprueba directamente
+        `serial_conn is not None`: la única señal honesta de que hay un
+        dispositivo físico respondiendo. Úsalo para decidir
+        `Provenance.SENSOR_REAL` vs `Provenance.SIMULACION` — nunca
+        `is_connected()`/`.connected` para esa decisión."""
+        return self.streamer.serial_conn is not None
+
     def get_health_summary(self) -> Dict[str, float]:
         summary = self.streamer.get_health_summary()
         summary['source'] = 'ESP32 Hardware'

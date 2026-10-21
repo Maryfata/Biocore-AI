@@ -37,26 +37,16 @@ def safe_import_plotly():
         return None, None, False
 
 
-def render_sidebar_navigation():
-    """Render a shared navigation menu in the sidebar for multipage Streamlit apps."""
-    nav_items = [
-        ("streamlit app", "http://localhost:8501/"),
-        ("🏠 Home", "http://localhost:8501/Home"),
-        ("📊 ECG Monitor", "http://localhost:8501/ECG_Monitor"),
-        ("🔗 Multisensor", "http://localhost:8501/Multisensor"),
-        ("🎓 Education", "http://localhost:8501/Education"),
-        ("👥 Patients", "http://localhost:8501/Patients"),
-        ("🤖 AI Analysis", "http://localhost:8501/AI_Analysis"),
-        ("📋 ECG-12-Derivaciones", "http://localhost:8501/ECG-12-Derivaciones"),
-        ("💨 Respiratory-Lab", "http://localhost:8501/Respiratory-Lab"),
-        ("🧠 EEG-Neuro-Lab", "http://localhost:8501/EEG-Neuro-Lab"),
-        ("🦾 EMG Muscle Lab", "http://localhost:8501/EMG_Muscle_Lab"),
-        ("📚 Guides", "http://localhost:8501/Guides"),
-        ("🏫 Academia", "http://localhost:8501/Academia_Clinica"),
-    ]
-    links = "\n".join(f"- [{name}]({url})" for name, url in nav_items)
-    st.sidebar.markdown("### Navegación rápida")
-    st.sidebar.markdown(links, unsafe_allow_html=True)
+# `render_sidebar_navigation()` retirada (2026-08-20, Capa 2 Fase 2.1,
+# cierre) -- vestigio de la arquitectura Streamlit multipágina anterior:
+# 13 enlaces `localhost:8501/NombrePágina` que no resuelven a nada en la
+# arquitectura actual (un solo script, navegación por `session_state`, sin
+# directorio `app/pages/` vivo). Confirmado por AppTest que renderizaba de
+# verdad en el sidebar de ECG-12/EEG Neuro Lab/Respiratory Lab, apilado
+# debajo de la navegación real -- una trampa de UX activa: al hacer clic,
+# el usuario perdía su `session_state` y volvía a la app en blanco, no una
+# simple redundancia inofensiva. El sidebar real (`app/main.py`, por
+# `session_state`) nunca dependió de este widget. Ver CHANGELOG.md.
     st.sidebar.markdown("---")
     st.sidebar.markdown("Usa estos enlaces para cambiar rápidamente entre páginas y secciones del panel.")
 
@@ -197,9 +187,25 @@ class FallbackMultisensoralRecord:
         return float(fallback)
 
     def _estimate_heart_rate(self) -> float:
+        # Bug 2 del ECG (2026-09-26): `estimate_ecg_heart_rate()` retirada
+        # (ver su comentario de retiro más abajo) -- este fallback (solo
+        # alcanzable si `dashboards.multisensor` falla al importar, algo
+        # que no ocurre en este entorno) ahora mide con el mismo motor TKEO
+        # validado que el resto del pipeline, en vez del detector naive sin
+        # distancia mínima. Si TKEO no encuentra suficientes picos, cae al
+        # mismo default 72.0 que ya usa esta clase para SpO2/temperatura
+        # ausentes -- consistente con el resto de `FallbackMultisensoralRecord`,
+        # no una promesa de medición real.
         for channel in self.channels:
             if channel.signal_type == 'ecg' and channel.signal.size > 0:
-                return float(estimate_ecg_heart_rate(channel.signal, channel.fs))
+                try:
+                    from clinical.ecg_analyzer import ECGAnalyzer
+                    peaks = ECGAnalyzer(fs=channel.fs).detect_r_peaks_tkeo(channel.signal)
+                    if len(peaks) >= 2:
+                        return float(60.0 * channel.fs / np.mean(np.diff(peaks)))
+                except ImportError:
+                    pass
+                return 72.0
         return 72.0
 
     def _estimate_respiration_rate(self) -> float:
@@ -209,19 +215,22 @@ class FallbackMultisensoralRecord:
         return 16.0
 
 
-def estimate_ecg_heart_rate(signal: np.ndarray, fs: float) -> float:
-    signal = np.asarray(signal, dtype=float)
-    if signal.size < fs:
-        return 0.0
-    threshold = np.mean(signal) + 0.35 * np.std(signal)
-    peaks = np.where(
-        (signal[1:-1] > threshold) &
-        (signal[1:-1] > signal[:-2]) &
-        (signal[1:-1] > signal[2:])
-    )[0] + 1
-    n_beats = len(peaks)
-    duration_s = len(signal) / fs
-    return float(np.clip((n_beats / duration_s) * 60.0, 0, 220))
+# estimate_ecg_heart_rate() retirada (Bug 2 del ECG, 2026-09-26, ver
+# CHANGELOG.md) -- detector de máximos locales sin distancia mínima ni
+# discriminación de altura entre picos. Confirmado por ejecución contra
+# DynamicECGGenerator (ya corregido, Bugs 1+3): cuenta el par R+T del MISMO
+# latido como dos latidos separados (hr real=100 -> 201bpm medido), satura
+# en 220bpm desde hr real~140 en adelante. Persistía incluso sobre una señal
+# con período/morfología ya corregidos -- bug propio del detector, no del
+# generador que lo alimentaba. Reemplazada en TODAS sus fuentes (demo Y
+# señal real: MIT-BIH/PTB-XL/CSV/hardware, `render_ecg_monitor_page()`) por
+# `ECGAnalyzer.detect_r_peaks_tkeo()` -- el mismo motor TKEO (banda 5-15Hz +
+# energía Teager-Kaiser + refractario, 6 rondas de validación con el
+# experto) que ya usaba el resto del pipeline clínico. Error medido en vivo
+# contra hr conocido: 0.00-0.12bpm en 40-200bpm (ver
+# tests/test_ecg_hr_detector_consolidation.py). Sin detección fiable
+# (<2 picos), el llamador declara "no disponible" -- nunca un número de
+# relleno.
 
 
 def estimate_respiration_rate(signal: np.ndarray, fs: float) -> float:
@@ -249,50 +258,16 @@ def validate_time_window(start: float, end: float) -> Tuple[float, float]:
 # SIGNAL GENERATION AND CACHING
 # ============================================================================
 
-@st.cache_data
-def generate_demo_ecg_signal(fs: float = 250, duration: float = 30, hr: float = 72) -> np.ndarray:
-    """
-    Generate demo ECG signal (cached).
-    
-    Parameters
-    ----------
-    fs : float
-        Sampling frequency (Hz)
-    duration : float
-        Duration in seconds
-    hr : float
-        Heart rate (bpm)
-        
-    Returns
-    -------
-    ndarray
-        Synthetic ECG signal
-    """
-    n_samples = int(fs * duration)
-    t = np.arange(n_samples) / fs
-    
-    # Heart rate component
-    hr_rad = 2 * np.pi * (hr / 60) * t
-    
-    # P wave
-    p_wave = 0.15 * np.exp(-((t % 1) - 0.1) ** 2 / 0.008)
-    
-    # QRS complex (dominant)
-    qrs_component = np.sin(hr_rad)
-    qrs_complex = 1.0 * np.exp(-((t % 1) - 0.25) ** 2 / 0.005) * np.sin(6 * np.pi * (t % 1))
-    
-    # T wave
-    t_wave = 0.3 * np.exp(-((t % 1) - 0.4) ** 2 / 0.02)
-    
-    # Baseline wander
-    baseline = 0.05 * np.sin(2 * np.pi * 0.1 * t)
-    
-    # Noise
-    noise = 0.02 * np.random.normal(0, 1, n_samples)
-    
-    ecg = p_wave + qrs_complex + t_wave + baseline + noise
-    
-    return ecg
+# generate_demo_ecg_signal() retirada (Fase 5B, 2026-08-30, ver
+# CHANGELOG.md) -- reemplazada por DynamicECGGenerator (McSharry et al.
+# 2003, oscilador de fase + gaussianas + restitución QT de Bazett),
+# `src/signals/ecg/dynamic_ecg_generator.py`. Esta función tenía 3 bugs
+# confirmados por ejecución: ignoraba el `hr` pedido (QRS con ciclo fijo
+# `t % 1`, `hr_rad` calculado y nunca usado), su HR se medía con un
+# detector saturado en 220bpm, y su QRS no toleraba período variable.
+# Confirmado por grep antes de retirar: cero llamadores vivos (los 3
+# consumidores -- ECG Monitor modo demo, Multisensor Fusion Lab Clínica y
+# Vista Simulación -- migrados a DynamicECGGenerator en la misma tanda).
 
 
 @st.cache_data
@@ -316,15 +291,24 @@ def generate_demo_ppg_signal(fs: float = 250, duration: float = 30, hr: float = 
 
 
 @st.cache_data
-def generate_demo_spo2_signal(fs: float = 250, duration: float = 30) -> np.ndarray:
-    """Generate demo SpO2 signal (cached)."""
+def generate_demo_spo2_signal(fs: float = 250, duration: float = 30, baseline: float = 98.0) -> np.ndarray:
+    """Generate demo SpO2 signal (cached).
+
+    `baseline` añadido (2026-08-20, Capa 2 Fase 2.2) -- mismo patrón que
+    `hr` en `generate_demo_ecg_signal()`/`rr` en
+    `generate_demo_respiration_signal()`, sus dos funciones hermanas, que ya
+    tomaban su parámetro objetivo. Antes esta era la única de las tres sin
+    uno -- el rango de clip se ajusta alrededor de `baseline` en vez de
+    quedar fijo en 95-100, para que un valor bajo (p.ej. 80) se refleje de
+    verdad en la señal generada."""
     n_samples = int(duration)  # 1 Hz sampling for SpO2
-    
-    # Stable SpO2 around 98% with tiny fluctuations
-    spo2 = np.full(n_samples, 98.0)
+    baseline = float(baseline)  # un slider entero (p.ej. Multisensor) da int -- np.full heredaría
+    # dtype int64 y el += con ruido float fallaría al castear in-place.
+
+    spo2 = np.full(n_samples, baseline)
     spo2 += np.random.normal(0, 0.3, n_samples)
-    spo2 = np.clip(spo2, 95, 100)
-    
+    spo2 = np.clip(spo2, max(0.0, baseline - 3), min(100.0, baseline + 2))
+
     return spo2
 
 
@@ -397,7 +381,7 @@ def plot_clinical_ecg_safe(signal: np.ndarray, fs: float, r_peaks: Optional[np.n
             from visualization.medical.plotly_clinical import create_clinical_ecg_figure
             
             fig = create_clinical_ecg_figure(signal, fs, r_peaks=r_peaks)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         except Exception as e:
             st.warning(f"⚠️ Plotly rendering failed: {e}")
             plot_signal_matplotlib(signal, fs, title="ECG Signal (Matplotlib Fallback)")
@@ -482,22 +466,22 @@ def render_view_selector() -> str:
 
 
 def render_scientific_discovery_layer(signals: Dict[str, np.ndarray]):
-    """Adds a layer of scientific discovery to the current lab context."""
+    """Adds a layer of scientific discovery to the current lab context.
+
+    Consolidación, Tanda 1 (2026-07-13): el botón "Identificar Patrones Ocultos"
+    se eliminó — tras un time.sleep(1) siempre imprimía el mismo texto fijo
+    ("...acoplamientos sutiles entre bandas de baja frecuencia"), sin leer
+    `signals` en absoluto (Art. I de la Constitución). "Analizar Entropía y
+    Complejidad" sí calcula algo real sobre la señal recibida — se conserva
+    intacto."""
     st.markdown("---")
     st.markdown("### 🧪 Capa de Descubrimiento Científico")
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("Analizar Entropía y Complejidad"):
-            for name, sig in signals.items():
-                if len(sig) > 0:
-                    # Simple entropy proxy (mean absolute difference)
-                    ent = float(np.abs(np.mean(np.diff(sig)))) 
-                    st.write(f"• **{name}** - Índice de Complejidad Dinámica: {ent:.4f}")
-    with c2:
-        if st.button("Identificar Patrones Ocultos (Frecuencia/Tiempo)"):
-            st.info("Buscando transitorios no estacionarios en la señal...")
-            time.sleep(1)
-            st.success("Análisis completado. Se observan acoplamientos sutiles entre bandas de baja frecuencia.")
+    if st.button("Analizar Entropía y Complejidad"):
+        for name, sig in signals.items():
+            if len(sig) > 0:
+                # Simple entropy proxy (mean absolute difference)
+                ent = float(np.abs(np.mean(np.diff(sig))))
+                st.write(f"• **{name}** - Índice de Complejidad Dinámica: {ent:.4f}")
 
 
 def render_discovery_lab(name: str, signals: Dict[str, np.ndarray]):

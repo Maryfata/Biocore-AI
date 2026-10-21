@@ -24,7 +24,7 @@ __all__ = [
 
 # Backwards-compatibility: if a legacy module `app/utils.py` exists (single-file
 # utils), import it and re-export its public symbols so `import app.utils` keeps
-# providing the expected helpers (safe_import_plotly, render_sidebar_navigation, etc.).
+# providing the expected helpers (safe_import_plotly, render_view_selector, etc.).
 try:
     import importlib.util
     import pathlib

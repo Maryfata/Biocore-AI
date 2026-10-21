@@ -4,7 +4,7 @@ ML-based Patient Analytics - Real AI Risk Scoring and Anomaly Detection
 
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime, timedelta
 
 
@@ -21,51 +21,70 @@ class PatientRiskPredictor:
             'trend': 0.10
         }
     
-    def calculate_risk_score(self, 
-                            age: int,
-                            heart_rate: float,
-                            systolic_bp: float,
-                            diastolic_bp: float,
+    def calculate_risk_score(self,
+                            age: Optional[int] = None,
+                            heart_rate: Optional[float] = None,
+                            systolic_bp: Optional[float] = None,
+                            diastolic_bp: Optional[float] = None,
                             ecg_pattern: str = 'normal',
-                            hrv_sdnn: float = 50.0,
+                            hrv_sdnn: Optional[float] = None,
                             trend_data: List[float] = None) -> Dict[str, Any]:
         """
         Calculate comprehensive cardiovascular risk score using multiple factors.
-        
+
+        Tanda 4 (2026-07-04): todos los factores salvo `ecg_pattern` son ahora
+        opcionales. Cuando una fuente real no está disponible (p.ej. el UPS no
+        modela presión arterial ni demografía — solo cardiovascular y
+        respiratorio), el factor correspondiente se OMITE del score en vez de
+        rellenarse con un valor típico inventado — "simulación ≠ dato falso"
+        aplica también a "dato ausente ≠ dato inventado". El peso total se
+        renormaliza sobre los factores realmente disponibles, para que
+        `total_risk` siga siendo comparable en escala 0-1 sin importar cuántos
+        factores falten.
+
         Args:
-            age: Patient age in years
-            heart_rate: Current heart rate in bpm
-            systolic_bp: Systolic blood pressure in mmHg
-            diastolic_bp: Diastolic blood pressure in mmHg
-            ecg_pattern: ECG classification
-            hrv_sdnn: Heart rate variability (SDNN in ms)
+            age: Patient age in years (None si no hay una fuente real)
+            heart_rate: Current heart rate in bpm (None si no hay una fuente real)
+            systolic_bp: Systolic blood pressure in mmHg (None si no hay una fuente real)
+            diastolic_bp: Diastolic blood pressure in mmHg (None si no hay una fuente real)
+            ecg_pattern: ECG classification (siempre 'normal' u otro patrón real, nunca None)
+            hrv_sdnn: Heart rate variability (SDNN in ms, None si no hay una fuente real)
             trend_data: Historical heart rate trend (last 7 measurements)
-        
+
         Returns:
-            Dict with risk score, level, and contributing factors
+            Dict con el score, factores realmente usados, y factores omitidos
+            por falta de dato real (`factors_used` / `factors_omitted`).
         """
         scores = {}
-        
+        omitted = []
+
         # Age risk (0-1 scale)
-        age_score = min((age - 18) / 82, 1.0) if age >= 18 else 0.0
-        scores['age'] = age_score
-        
-        # Heart rate risk
-        if 60 <= heart_rate <= 100:
-            hr_score = 0.0
-        elif 50 <= heart_rate < 60 or 100 < heart_rate <= 120:
-            hr_score = 0.3
-        elif 40 <= heart_rate < 50 or 120 < heart_rate <= 150:
-            hr_score = 0.6
+        if age is not None:
+            scores['age'] = min((age - 18) / 82, 1.0) if age >= 18 else 0.0
         else:
-            hr_score = 1.0
-        scores['heart_rate'] = hr_score
-        
-        # Blood pressure risk (using Framingham model-like scoring)
-        bp_score = self._calculate_bp_risk(systolic_bp, diastolic_bp)
-        scores['blood_pressure'] = bp_score
-        
-        # ECG pattern risk
+            omitted.append('age')
+
+        # Heart rate risk
+        if heart_rate is not None:
+            if 60 <= heart_rate <= 100:
+                hr_score = 0.0
+            elif 50 <= heart_rate < 60 or 100 < heart_rate <= 120:
+                hr_score = 0.3
+            elif 40 <= heart_rate < 50 or 120 < heart_rate <= 150:
+                hr_score = 0.6
+            else:
+                hr_score = 1.0
+            scores['heart_rate'] = hr_score
+        else:
+            omitted.append('heart_rate')
+
+        # Blood pressure risk (using Framingham model-like scoring) — requiere ambos valores
+        if systolic_bp is not None and diastolic_bp is not None:
+            scores['blood_pressure'] = self._calculate_bp_risk(systolic_bp, diastolic_bp)
+        else:
+            omitted.append('blood_pressure')
+
+        # ECG pattern risk — siempre presente (default 'normal' es un patrón real, no un placeholder)
         ecg_risk_map = {
             'normal': 0.0,
             'arrhythmia': 0.4,
@@ -75,25 +94,41 @@ class PatientRiskPredictor:
             'unknown': 0.3,
         }
         scores['ecg_pattern'] = ecg_risk_map.get(ecg_pattern.lower(), 0.3)
-        
+
         # HRV risk (lower HRV = higher risk)
-        if hrv_sdnn >= 50:
-            hrv_score = 0.0
-        elif 30 <= hrv_sdnn < 50:
-            hrv_score = 0.3
-        elif 20 <= hrv_sdnn < 30:
-            hrv_score = 0.6
+        if hrv_sdnn is not None:
+            if hrv_sdnn >= 50:
+                hrv_score = 0.0
+            elif 30 <= hrv_sdnn < 50:
+                hrv_score = 0.3
+            elif 20 <= hrv_sdnn < 30:
+                hrv_score = 0.6
+            else:
+                hrv_score = 1.0
+            scores['hrv'] = hrv_score
         else:
-            hrv_score = 1.0
-        scores['hrv'] = hrv_score
-        
+            omitted.append('hrv')
+
         # Trend analysis risk
-        trend_score = self._calculate_trend_risk(trend_data) if trend_data else 0.0
-        scores['trend'] = trend_score
-        
-        # Weighted total risk
-        total_risk = sum(scores[key] * self.risk_weights[key] for key in scores)
-        
+        if trend_data:
+            scores['trend'] = self._calculate_trend_risk(trend_data)
+        else:
+            omitted.append('trend')
+
+        # Weighted total risk, renormalizado sobre los pesos realmente usados
+        used_weight_sum = sum(self.risk_weights[key] for key in scores)
+        if used_weight_sum <= 0:
+            return {
+                'total_risk': None,
+                'risk_level': "⚪ Datos insuficientes",
+                'color': "#94a3b8",
+                'contributing_factors': {},
+                'factors_used': [],
+                'factors_omitted': omitted,
+                'recommendations': ["No hay suficientes datos reales para calcular un score de riesgo."],
+            }
+        total_risk = sum(scores[key] * self.risk_weights[key] for key in scores) / used_weight_sum
+
         # Classify risk level
         if total_risk < 0.2:
             risk_level = "🟢 Bajo riesgo"
@@ -107,12 +142,14 @@ class PatientRiskPredictor:
         else:
             risk_level = "🔴 Riesgo muy alto"
             color = "#ef4444"
-        
+
         return {
             'total_risk': round(total_risk, 3),
             'risk_level': risk_level,
             'color': color,
             'contributing_factors': scores,
+            'factors_used': list(scores.keys()),
+            'factors_omitted': omitted,
             'recommendations': self._get_recommendations(total_risk, scores)
         }
     
@@ -146,22 +183,26 @@ class PatientRiskPredictor:
             return 0.6
     
     def _get_recommendations(self, risk_score: float, factors: Dict) -> List[str]:
-        """Generate personalized recommendations based on risk profile."""
+        """Generate personalized recommendations based on risk profile.
+
+        Tanda 4: `factors` ahora puede no traer todas las claves (factores
+        omitidos por falta de dato real) — se usa `.get(key, 0.0)` en vez de
+        indexado directo para no fallar cuando faltan."""
         recommendations = []
-        
+
         if risk_score >= 0.5:
             recommendations.append("⚠️ Considere consulta cardiólogo urgente")
-        
-        if factors['blood_pressure'] > 0.5:
+
+        if factors.get('blood_pressure', 0.0) > 0.5:
             recommendations.append("📋 Monitorizar presión arterial diariamente")
-        
-        if factors['heart_rate'] > 0.5:
+
+        if factors.get('heart_rate', 0.0) > 0.5:
             recommendations.append("💓 Frecuencia cardíaca elevada - evaluar causa")
-        
-        if factors['hrv'] > 0.5:
+
+        if factors.get('hrv', 0.0) > 0.5:
             recommendations.append("😰 HRV baja - posible estrés o fatiga")
-        
-        if factors['trend'] > 0.3:
+
+        if factors.get('trend', 0.0) > 0.3:
             recommendations.append("📈 Tendencia adversa detectada en últimas mediciones")
         
         if risk_score < 0.3:

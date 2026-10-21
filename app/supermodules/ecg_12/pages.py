@@ -6,40 +6,73 @@ import os
 import runpy
 import streamlit as st
 
-MODULE_EMOJI = os.path.join(os.path.dirname(__file__).rsplit('supermodules', 1)[0], 'pages_legacy', '6_📋_ECG-12-Derivaciones.py')
+from app.utils.design_system import render_section_header, render_error_state, render_empty_state, render_plate
+
+# Reubicado (Tanda de eliminación de pages_legacy, Movimiento 1, 2026-07-13):
+# antes apuntaba a app/pages_legacy/6_📋_ECG-12-Derivaciones.py — mismo contenido,
+# copiado tal cual a page_content.py junto a este archivo, sin cambiar una línea.
+MODULE_EMOJI = os.path.join(os.path.dirname(__file__), 'page_content.py')
 
 def render_views():
-    tabs = st.tabs(["Clínica", "Educativa", "Investigación", "IA", "Simulación", "Gemelo Digital"]) 
+    # Fase 2.3 Tanda 3 (2026-08-29): ECG-12 se alcanza como pestaña dentro
+    # del hub "ECG Lab" (render_ecg_lab_page(), que ya muestra
+    # render_module_header("ECG Lab")) -- sus "Vista X" son encabezados de
+    # SECCIÓN, no un segundo título de módulo duplicado (mismo criterio que
+    # la pestaña "Monitoreo").
+    # Consolidación, Tanda 1 (2026-07-13): la pestaña "IA" se eliminó — era una
+    # sola línea estática ("Modelos de clasificación de 12 derivaciones y
+    # explicaciones") sin ningún cálculo detrás (Art. I). La Vista Clínica real
+    # (tabs[0]) no se tocó.
+    # Capa 2, Fase 2.2, Ejecución 2 (2026-08-21): "Investigación"/"Simulación"/
+    # "Gemelo Digital" retiradas -- eran header+write sin contenido (fachada de
+    # estructura, R1/R3). "Educativa" se llenó con un puntero honesto a la
+    # tabla real de 12 derivaciones (Academia Clinica), no una lección
+    # fabricada. Ver CHANGELOG.md.
+    # 2026-10-21: "Vectocardiograma 3D" -- el VCG del ECG de la Vista
+    # Clínica, de un CSV propio o de una paciente real del PTB (con sus
+    # derivaciones de Frank registradas para comparar).
+    tabs = st.tabs(["Clínica", "Educativa", "Vectocardiograma 3D"])
 
     with tabs[0]:
-        st.header("Vista Clínica — ECG 12 Derivaciones")
+        render_section_header("Vista Clínica — ECG 12 Derivaciones")
         if os.path.exists(MODULE_EMOJI):
             try:
                 runpy.run_path(MODULE_EMOJI, run_name='__main__')
             except Exception as e:
-                st.error(f"Error ejecutando página ECG-12 original: {e}")
+                render_error_state("No se pudo renderizar la Vista Clínica de ECG-12.", exception=e)
         else:
-            st.info("ECG-12: se requiere implementación original para contenido clínico completo.")
+            render_empty_state(
+                "ECG-12 no encontrado", action="se requiere la implementación original para contenido clínico completo"
+            )
 
     with tabs[1]:
-        st.header("Vista Educativa")
-        st.write("Lecciones sobre derivaciones, localización de infartos y ejemplos.")
+        render_section_header("Vista Educativa")
+        # Rediseño visual (2026-10-19): las dos láminas que explican de dónde
+        # salen las 12 derivaciones -- el plano horizontal (V1-V6) y el
+        # frontal (sistema hexaxial / triángulo de Einthoven).
+        col_precordial, col_hexaxial = st.columns(2)
+        with col_precordial:
+            render_plate("precordial")
+        with col_hexaxial:
+            render_plate("hexaxial")
+        st.info(
+            "🩺 **Derivaciones ECG** — la tabla real de las 12 derivaciones (localización, "
+            "territorio, cara afectada) está disponible en **Learning Hub → 🏫 Academia Clinica → "
+            "Lecciones y Casos → 📖 Teoría**; todas las láminas, en **Atlas visual**."
+        )
 
     with tabs[2]:
-        st.header("Vista Investigación")
-        st.write("Comparación de derivaciones y análisis de segmentos para investigación.")
+        render_section_header("Vectocardiograma 3D")
+        st.markdown(
+            "El ECG mira el corazón desde 12 ángulos; el vectocardiograma junta esa información en una sola "
+            "flecha que gira en el espacio durante el latido. Aquí se reconstruye con la matriz de Kors."
+        )
+        try:
+            from app.supermodules.model3d.panels import render_vcg_panel
 
-    with tabs[3]:
-        st.header("Vista IA")
-        st.write("Modelos de clasificación de 12 derivaciones y explicaciones.")
-
-    with tabs[4]:
-        st.header("Vista Simulación")
-        st.write("Simula cambio de ubicación de derivaciones y observa efectos.")
-
-    with tabs[5]:
-        st.header("Vista Gemelo Digital")
-        st.write("Gemelo cardiaco con mapeo de derivaciones para pruebas.")
+            render_vcg_panel("ecg12_vcg", default_source="ptb", allow_clinical=True)
+        except Exception as e:  # noqa: BLE001
+            render_error_state("No se pudo dibujar el vectocardiograma.", exception=e)
 
 
 def main():
@@ -47,14 +80,14 @@ def main():
 
 
 def run():
-    """Wrapper entrypoint compatible with importing as `run` from supermodules."""
-    return main()
+    """Wrapper entrypoint compatible with importing as `run` from supermodules.
 
-
-# Seguro de ejecución para evitar doble renderizado
-if __name__ == "__main__":
+    NOTA (2026-07-03): antes había también un `try: main() except ...` a nivel
+    de módulo, que se ejecutaba una vez al importar y otra vez aquí — doble
+    renderizado la primera vez que se importaba el módulo en un proceso. Se
+    eliminó; `run()` es ahora el único punto de entrada, igual que en
+    twin_shell/academia."""
     try:
         main()
     except Exception as e:
-        import streamlit as st
-        st.exception(f"Fallo al cargar la página 6_ECG_12.py: {e}")
+        render_error_state("No se pudo cargar ECG-12.", exception=e)

@@ -181,20 +181,31 @@ class TwelveLeadEcgGenerator:
         signal[p_mask] += params.p_amplitude * np.sin(p_pos * np.pi)
         
         # QRS complex (0.2-0.4 of cycle, centered at 0.25)
+        # NOTA (2026-07-04, Tanda 4 Pieza 2): `signal[qrs_mask][q_mask] -= ...` era un
+        # bug real de indexado encadenado de NumPy — `signal[qrs_mask]` ya es una copia
+        # (fancy/boolean indexing siempre copia), así que `[q_mask] -= ...` modificaba
+        # esa copia descartada, nunca `signal`. El complejo QRS completo (Q, R y S)
+        # nunca se escribía en la señal — cualquier consumidor de este generador
+        # (ECG-12, y ahora el clasificador real del Twin OS) recibía una onda con solo
+        # P y T, sin QRS. Se arregla construyendo el tramo QRS aparte y asignándolo de
+        # una sola vez con `signal[qrs_mask] = qrs_values` (sin indexado encadenado).
         qrs_mask = (heart_cycle > 0.15) & (heart_cycle < 0.35)
         qrs_pos = (heart_cycle[qrs_mask] - 0.15) / 0.2
-        
+        qrs_values = np.zeros_like(qrs_pos)
+
         # Q wave (slight negative)
         q_mask = qrs_pos < 0.33
-        signal[qrs_mask][q_mask] -= 0.1 * np.sin(qrs_pos[q_mask] * np.pi / 0.33)
-        
+        qrs_values[q_mask] -= 0.1 * np.sin(qrs_pos[q_mask] * np.pi / 0.33)
+
         # R wave (main positive)
         r_mask = (qrs_pos >= 0.33) & (qrs_pos < 0.67)
-        signal[qrs_mask][r_mask] += 1.2 * np.sin((qrs_pos[r_mask] - 0.33) * np.pi / 0.34)
-        
+        qrs_values[r_mask] += 1.2 * np.sin((qrs_pos[r_mask] - 0.33) * np.pi / 0.34)
+
         # S wave (negative)
         s_mask = qrs_pos >= 0.67
-        signal[qrs_mask][s_mask] -= 0.3 * np.sin((qrs_pos[s_mask] - 0.67) * np.pi / 0.33)
+        qrs_values[s_mask] -= 0.3 * np.sin((qrs_pos[s_mask] - 0.67) * np.pi / 0.33)
+
+        signal[qrs_mask] += qrs_values
         
         # ST segment (flat baseline expected)
         st_mask = (heart_cycle > 0.35) & (heart_cycle < 0.55)

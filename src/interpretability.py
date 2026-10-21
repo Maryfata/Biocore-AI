@@ -268,7 +268,13 @@ def compute_feature_importance(features, baseline=None):
     return ordered
 
 
-def shap_like_explanation(features, prediction, probability):
+def shap_like_explanation(features, prediction):
+    """`probability` se retiró del parámetro (2026-08-06) -- el único
+    llamador real (`classify_ecg_signal`) lo alimentaba con un `confidence`
+    que era una constante literal por rama de regla en
+    `ECGAnalyzer.detect_clinical_pattern()`, no una probabilidad calculada;
+    mostrarlo aquí como "X% de confianza" era el mismo dato falso filtrado
+    por una segunda vía. Ver CHANGELOG.md."""
     importance = compute_feature_importance(features)
     if not importance:
         return []
@@ -283,7 +289,7 @@ def shap_like_explanation(features, prediction, probability):
             f"- {item['label']} {change} ({item['percent']:.0f}%) — {item['human']}"
         )
     narrative.append(
-        f"El modelo combina estos factores para explicar el resultado: {prediction} con {probability:.0%} de confianza."
+        f"El modelo combina estos factores para explicar el resultado: {prediction}."
     )
     return narrative
 
@@ -323,9 +329,9 @@ def feature_importance_summary(features, prediction, probability):
     return summary
 
 
-def generate_shap_lime_report(features, prediction, probability):
+def generate_shap_lime_report(features, prediction):
     return {
-        'shap': shap_like_explanation(features, prediction, probability),
+        'shap': shap_like_explanation(features, prediction),
         'lime': lime_like_explanation(features, prediction),
         'importance': compute_feature_importance(features),
     }
