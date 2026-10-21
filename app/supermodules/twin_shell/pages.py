@@ -37,8 +37,10 @@ from app.engines import (
 )
 from app.utils.design_system import (
     render_module_header, render_error_state, render_ai_feedback_off_notice, render_plate, BADGES, PALETTE,
+    render_ai_engine_off_notice, ai_engine_caption,
 )
 from visualization.art import get_plate, organ_glyph_svg
+from visualization.art import renders as anatomy_renders
 from app.utils.patient_session import (
     get_active_patient_id,
     get_active_session_factory,
@@ -312,6 +314,17 @@ def render_ambient_header(organism: DigitalTwinOrganism) -> None:
         st.warning(alert)
 
 
+ORGAN_RENDER = {"heart": "organ_heart", "brain": "organ_brain", "lungs": "organ_lungs",
+                 "muscles": "organ_muscles", "autonomic": "organ_autonomic"}
+
+
+def _organ_image_html(organ_id: str, name: str, cls: str = "bc-organ-img") -> str:
+    key = ORGAN_RENDER.get(organ_id)
+    if not key or not anatomy_renders.available(key):
+        return ""
+    return anatomy_renders.image_html(key, cls=cls, alt=f"{name}: {anatomy_renders.entry(key)['alt']}")
+
+
 def render_organ_grid(organism: DigitalTwinOrganism) -> None:
     """Organ-click is the primary verb — this replaces the menu."""
     st.markdown("#### Toca un órgano para explorar su fisiología")
@@ -350,12 +363,13 @@ def render_organ_grid(organism: DigitalTwinOrganism) -> None:
                 f"<div class='bc-organ-note'>{PROVENANCE_HEURISTIC_BADGE} heurística</div>"
             )
 
-        # Órgano dibujado (visualization/art/glyphs.py) en vez del emoji: se
-        # ve igual en todos los sistemas y toma el color de su estado.
-        glyph = organ_glyph_svg(organ_id, color, size=46)
+        # 2026-10-21: el órgano es un render de anatomía real (tomografía /
+        # plantilla MNI) en vez del dibujo plano; el estado se sigue leyendo
+        # en el borde y en el valor. Si faltara el render, queda el dibujo.
+        glyph = _organ_image_html(organ_id, organ.name) or organ_glyph_svg(organ_id, color, size=46)
         with col:
             st.markdown(
-                f"<div class='bc-organ' style='border: {border}; {ring} height: 150px; border-radius: 18px;'>"
+                f"<div class='bc-organ' style='border: {border}; {ring} height: 196px; border-radius: 18px;'>"
                 f"{glyph}<div class='bc-organ-name'>{organ.name}</div>{value_html}</div>",
                 unsafe_allow_html=True,
             )
@@ -370,6 +384,59 @@ def render_organ_grid(organism: DigitalTwinOrganism) -> None:
         "Cerebro/Músculos/Autonómico no citan ninguna referencia -- se muestran como banda cualitativa, "
         "no como número, para no fingir precisión.)"
     )
+
+
+BODY_LAYER_DEFAULT = ("skeleton", "circulatory", "respiratory", "nervous", "muscular", "skin")
+
+
+def render_body_3d(organism: DigitalTwinOrganism) -> None:
+    """Cuerpo 3D de una persona real (TC del TotalSegmentator) con los
+    órganos del gemelo coloreados por su estado (2026-10-21). La anatomía
+    es real; los colores son el estado SIMULADO del gemelo."""
+    from visualization import anatomy3d as A3
+
+    if not A3.assets_available():
+        return
+    with st.expander("Cuerpo 3D: anatomía real con el estado del gemelo", expanded=True,
+                     icon=":material/accessibility_new:"):
+        layers = st.pills("Capas", list(A3.SYSTEM_LABELS), format_func=A3.SYSTEM_LABELS.get,
+                          selection_mode="multi", default=list(BODY_LAYER_DEFAULT), key="twin_body3d_layers")
+        c2, c3 = st.columns([3, 2], vertical_alignment="bottom")
+        view = c2.segmented_control("Vista", ["front", "oblique", "left", "back"],
+                                    format_func=A3.CAMERA_LABELS.get, default="front",
+                                    key="twin_body3d_view") or "front"
+        with c3:
+            by_status = st.toggle("Colorear órganos por su estado", value=True, key="twin_body3d_status")
+            focus = st.toggle("Enfocar el órgano elegido", value=False, key="twin_body3d_focus")
+        part_colors, notes = {}, {}
+        for organ_id, parts in A3.TWIN_ORGAN_PARTS.items():
+            organ = organism.organs.get(organ_id)
+            if organ is None:
+                continue
+            label = ORGAN_STATUS_LABELS.get(organ.status, "")
+            for part in parts:
+                if by_status:
+                    part_colors[part] = ORGAN_STATUS_COLOR.get(organ.status, PALETTE.NEUTRAL)
+                notes[part] = f"{organ.name} del gemelo: {label}"
+        selected = st.session_state.get("twin_shell_selected_organ")
+        highlight = A3.TWIN_ORGAN_PARTS.get(selected, ()) if focus else ()
+        fig = A3.body_figure(systems=tuple(layers or ()), highlight=highlight, part_colors=part_colors,
+                             part_notes=notes, camera=view, height=640)
+        st.plotly_chart(fig, width="stretch", key="twin_body3d", config={"displaylogo": False, "scrollZoom": True})
+        legend = "".join(
+            f"<span><i style='background:{c}'></i>{t}</span>" for c, t in (
+                (PALETTE.STABLE, "Óptimo / normal"), (PALETTE.WARNING, "Alerta"), (PALETTE.CRITICAL, "Crítico"))
+        ) if by_status else ""
+        if legend:
+            st.markdown(f"<div class='bc-legend'>{legend}</div>", unsafe_allow_html=True)
+        n_surf, n_seg = A3.body_counts()
+        st.caption(
+            "La anatomía es de una persona real: tomografía de cuerpo completo del TotalSegmentator dataset "
+            f"(sujeto s1397, CC BY 4.0); {n_seg} de sus segmentaciones forman {n_surf} superficies 3D. Los "
+            "colores son el estado simulado del gemelo. El sistema autónomo no se ve en una tomografía: se marca "
+            "la médula espinal, de donde sale la vía simpática. Gira, acerca y pasa el cursor para ver cada "
+            "estructura."
+        )
 
 
 def render_sensor_controls(organism: DigitalTwinOrganism) -> None:
@@ -463,9 +530,10 @@ def render_organ_panel(organism: DigitalTwinOrganism) -> None:
     organ = organism.organs[organ_id]
 
     color = ORGAN_STATUS_COLOR.get(organ.status, PALETTE.NEUTRAL)
+    icon = _organ_image_html(organ_id, organ.name, cls="bc-organ-icon") or organ_glyph_svg(organ_id, color, size=34)
     st.markdown(
         f"<div class='bc-title-row'><span class='bc-glyph' aria-hidden='true'>"
-        f"{organ_glyph_svg(organ_id, color, size=34)}</span><h2 style='margin:0;padding:0'>{organ.name}</h2></div>",
+        f"{icon}</span><h2 style='margin:0;padding:0'>{organ.name}</h2></div>",
         unsafe_allow_html=True,
     )
     render_mode_toggle()
@@ -981,11 +1049,7 @@ def render_clinical_narrator(organism: DigitalTwinOrganism) -> None:
 
     with st.expander("🩺 Narrador clínico (IA real) — Fase 1.3", expanded=False):
         if not narrator_is_configured():
-            st.warning(
-                "`ANTHROPIC_API_KEY` no está configurada en el entorno. El narrador llama a la "
-                "API real de Anthropic con streaming — no existe una narración simulada de "
-                "respaldo. Define la variable de entorno para activarlo."
-            )
+            render_ai_engine_off_notice()
             return
 
         st.caption(
@@ -993,6 +1057,7 @@ def render_clinical_narrator(organism: DigitalTwinOrganism) -> None:
             "comparación antes/ahora) y genera una explicación en streaming fundamentada en "
             "esos datos — no es un chat de propósito general."
         )
+        st.caption(ai_engine_caption())
 
         depth = st.radio(
             "Profundidad",
@@ -1024,8 +1089,8 @@ def render_clinical_narrator(organism: DigitalTwinOrganism) -> None:
                 # `{exc}` crudo (puede incluir detalle interno de la
                 # respuesta HTTP de la API).
                 render_error_state(
-                    "No se pudo completar la narración -- la llamada a la API de Anthropic falló "
-                    "(red o cuota). Intenta de nuevo en unos segundos.",
+                    "No se pudo completar la narración: el motor de IA no respondió (¿sigue abierto "
+                    "Ollama? ¿hay red o cuota para Claude?). Intenta de nuevo en unos segundos.",
                     exception=exc,
                 )
 
@@ -1327,7 +1392,7 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism) -> None:
     with st.expander("🎓 Caso clínico interactivo (diagnóstico ciego) — v1", expanded=False):
         st.caption(
             "Se carga uno de los 12 escenarios reales sin revelar cuál. Diagnostica eligiendo "
-            "entre 4 opciones; el feedback lo genera el narrador real (Anthropic), fundamentado "
+            "entre 4 opciones; el feedback lo genera el narrador con IA real (local gratis o Claude), fundamentado "
             "únicamente en los descriptores y eventos que el UPS realmente persistió."
         )
 
@@ -1491,7 +1556,7 @@ def render_clinical_case_mode(organism: DigitalTwinOrganism) -> None:
                     st.session_state.clinical_case_feedback_error = str(exc)
                 except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.
                     st.session_state.clinical_case_feedback = None
-                    st.session_state.clinical_case_feedback_error = f"Error llamando a la API de Anthropic: {exc}"
+                    st.session_state.clinical_case_feedback_error = f"Error llamando al motor de IA: {exc}"
 
                 st.session_state.clinical_case_selected = choice
                 st.session_state.clinical_case_answered = True
@@ -1558,10 +1623,7 @@ def render_causal_reasoning(organism: DigitalTwinOrganism) -> None:
             return
 
         if not narrator_is_configured():
-            st.warning(
-                "`ANTHROPIC_API_KEY` no está configurada — el razonamiento causal requiere la "
-                "API real de Anthropic, sin narración simulada de respaldo."
-            )
+            render_ai_engine_off_notice()
             return
 
         st.caption(
@@ -1569,6 +1631,7 @@ def render_causal_reasoning(organism: DigitalTwinOrganism) -> None:
             "fundamentado en la trayectoria real del UPS (antes→ahora) y el orden temporal de "
             "sus eventos — no en reglas fijas ni en texto genérico."
         )
+        st.caption(ai_engine_caption())
 
         if st.button("Explicar origen", key="twin_shell_explain_cause"):
             session_factory = get_active_session_factory()
@@ -1590,8 +1653,8 @@ def render_causal_reasoning(organism: DigitalTwinOrganism) -> None:
                 render_error_state(str(exc))
             except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.
                 render_error_state(
-                    "No se pudo completar la narración -- la llamada a la API de Anthropic falló "
-                    "(red o cuota). Intenta de nuevo en unos segundos.",
+                    "No se pudo completar la narración: el motor de IA no respondió (¿sigue abierto "
+                    "Ollama? ¿hay red o cuota para Claude?). Intenta de nuevo en unos segundos.",
                     exception=exc,
                 )
 
@@ -2087,6 +2150,7 @@ def main() -> None:
     render_sensor_controls(organism)
     render_ambient_header(organism)
     render_organ_grid(organism)
+    render_body_3d(organism)
     render_couplings(organism)
     render_neuro_cardiac_composer()
     st.divider()

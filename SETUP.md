@@ -43,11 +43,17 @@ dependencies only when `requirements.txt` changes, launches).
 
 ## Optional: clinical AI narrator
 
-The only real AI integration (`domain/physiology/narrator/`) calls the
-Anthropic API. It is **off by default** and the app runs fully without it —
-the narrator panels show an explicit "not configured" notice instead.
+The only real AI integration (`domain/physiology/narrator/`) works with a
+**free local model** or with Claude. The app runs fully without either — the
+narrator panels show an explicit "no AI engine" notice instead.
 
-To enable it, copy `.env.example` to `.env` and put your key there — the app
+**Free, no key (recommended):** install [Ollama](https://ollama.com), then run
+`ollama pull qwen2.5:7b` (about 4.7 GB; `qwen2.5:3b` for low-memory machines).
+With Ollama running, BIOCORE detects it at `http://127.0.0.1:11434`; pick the
+model in the sidebar under "Motor de IA". Any OpenAI-compatible local server
+(LM Studio, llama.cpp, vLLM, Jan) also works: set `BIOCORE_LOCAL_AI_URL`.
+
+**Claude:** copy `.env.example` to `.env` and put your key there — the app
 loads `.env` from the repo root at startup (`app/utils/env_loader.py`; a
 variable already set in the environment wins, and the example placeholder is
 ignored). Or set it in your environment before launching:

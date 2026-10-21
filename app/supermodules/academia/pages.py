@@ -253,7 +253,7 @@ def render_lessons_quizzes_tab() -> None:
                             quiz_state["feedback_error"] = str(exc)
                         except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.
                             quiz_state["feedback"] = None
-                            quiz_state["feedback_error"] = f"Error llamando a la API de Anthropic: {exc}"
+                            quiz_state["feedback_error"] = f"Error llamando al motor de IA: {exc}"
                     quiz_state["answered_current"] = True
                     st.rerun()
             else:
@@ -344,8 +344,8 @@ def render_synthetic_case_section() -> None:
             "🧪 Caso **simulado** por el banco de casos de BIOCORE — no es un paciente real. "
             "Es una variación honesta de uno de los 12 escenarios reales del simulador "
             "(distinto punto de partida, distinto punto de la evolución), sin revelar cuál. "
-            "Diagnostica eligiendo entre 4 opciones; el feedback lo genera el narrador real "
-            "(Anthropic), fundamentado en los descriptores y eventos que este caso contiene."
+            "Diagnostica eligiendo entre 4 opciones; el feedback lo genera el narrador con IA real "
+            "(local gratis o Claude), fundamentado en los descriptores y eventos que este caso contiene."
         )
 
         # 2026-10-19: antes `return` sin clave -- el caso ciego entero (generar,
@@ -508,7 +508,7 @@ def render_synthetic_case_section() -> None:
                     st.session_state["academia_case_feedback_error"] = str(exc)
                 except Exception as exc:  # llamada real a la API — puede fallar por red/cuota/etc.
                     st.session_state["academia_case_feedback"] = None
-                    st.session_state["academia_case_feedback_error"] = f"Error llamando a la API de Anthropic: {exc}"
+                    st.session_state["academia_case_feedback_error"] = f"Error llamando al motor de IA: {exc}"
 
                 st.session_state["academia_case_selected"] = choice
                 st.session_state["academia_case_answered"] = True
@@ -584,18 +584,59 @@ ACADEMIA_TABS = [
 ]
 
 
+ATLAS_3D_FOCUS = {
+    # nombre -> (partes resaltadas, partes de contexto, vista)
+    "Cuerpo completo": ((), (), "front"),
+    "Corazón y grandes vasos": (("heart", "artery_roots", "vein_roots"), ("ribs", "sternum", "lung_left",
+                                                                         "lung_right"), "oblique"),
+    "Pulmones y tráquea": (("lung_right", "lung_left", "trachea"), ("ribs", "heart", "spine"), "front"),
+    "Esqueleto": (("skull", "spine", "ribs", "sternum", "costal_cartilages", "shoulder_girdle", "humeri",
+                   "pelvis", "femurs"), (), "oblique"),
+    "Músculos de la espalda y la cadera": (("back_muscles", "iliopsoas", "gluteals"), ("spine", "pelvis",
+                                                                                      "femurs"), "back"),
+    "Abdomen": (("liver", "gallbladder", "stomach", "duodenum", "small_bowel", "colon", "pancreas", "spleen",
+                 "kidneys", "adrenals", "bladder"), ("spine", "pelvis", "ribs"), "front"),
+}
+
+
+def render_atlas_3d() -> None:
+    """Explorador 3D del Atlas (2026-10-21): la misma tomografía real de las
+    láminas, para girarla y ver cada estructura con su volumen medido."""
+    from visualization import anatomy3d as A3
+
+    if not A3.assets_available():
+        return
+    with st.expander("Explorar en 3D: el cuerpo de la tomografía real", expanded=False,
+                     icon=":material/view_in_ar:"):
+        c1, c2 = st.columns(2)
+        focus = c1.selectbox("Qué ver", list(ATLAS_3D_FOCUS), key="academia_atlas3d_focus")
+        parts, context, view = ATLAS_3D_FOCUS[focus]
+        view = c2.segmented_control("Vista", ["front", "oblique", "left", "back"], format_func=A3.CAMERA_LABELS.get,
+                                    default=view, key="academia_atlas3d_view") or view
+        if parts:
+            fig = A3.organ_figure(parts, context=context, camera=view, height=600)
+        else:
+            fig = A3.body_figure(systems=A3.DEFAULT_SYSTEMS + ("abdominal",), camera=view, height=640)
+        st.plotly_chart(fig, width="stretch", key="academia_atlas3d", config={"displaylogo": False,
+                                                                           "scrollZoom": True})
+        st.caption("Tomografía real de cuerpo completo (TotalSegmentator dataset v2, sujeto s1397, CC BY 4.0). "
+                   "Pasa el cursor sobre una estructura para ver su nombre y su volumen medido en esa TC.")
+
+
 def render_atlas_tab() -> None:
-    """Atlas visual (rediseño 2026-10-19): todas las láminas de
-    `visualization/art/plates.py` en un solo lugar, agrupadas por sistema.
-    Son esquemas dibujados por código -- cada uno dice "Esquema ilustrativo"
-    y lleva sus fuentes --, los mismos que aparecen dentro de cada
-    laboratorio (ECG Lab, EEG, Respiratory, HRV, EMG, Calculadoras, Twin
-    OS). Contenido educativo estándar con cita, no texto generado por IA."""
+    """Atlas visual (rediseño 2026-10-19; datos reales 2026-10-21): todas
+    las láminas de `visualization/art/plates.py` en un solo lugar,
+    agrupadas por sistema. Cada una dice qué es -- registro real, anatomía
+    real de una tomografía, esquema o simulación -- y lleva sus fuentes; son
+    las mismas que aparecen dentro de cada laboratorio. Contenido educativo
+    con cita, no texto generado por IA."""
     st.markdown("### Atlas visual")
     st.write(
-        "Láminas para estudiar la fisiología que miden los laboratorios. Todas funcionan sin internet "
-        "y llevan sus fuentes; dentro de cada laboratorio se resaltan según lo que elijas."
+        "Anatomía real de una tomografía, registros reales de ECG y EEG, y los esquemas que explican lo "
+        "que miden los laboratorios. Todo funciona sin internet y lleva sus fuentes; dentro de cada "
+        "laboratorio se resaltan según lo que elijas."
     )
+    render_atlas_3d()
     options = ["Todos", *ATLAS_TOPICS]
     topic = st.segmented_control("Sistema", options, default="Todos", key="academia_atlas_topic")
     keys = [k for k in ATLAS if topic in (None, "Todos") or PLATES[k].topic == topic]

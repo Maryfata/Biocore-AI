@@ -30,6 +30,15 @@ div.bc-head h1{{margin:0;padding:0;font-family:{T.FONT_HEAD};font-weight:700;fon
 .bc-plate-top{{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}}
 .bc-plate-topic{{font-size:.8125rem;color:{T.INK_3}}}
 .bc-plate-art svg{{display:block;width:100%;height:auto;max-height:560px}}
+.bc-render{{position:relative;width:100%;max-width:720px;margin:0 auto;border-radius:12px;overflow:hidden;
+  background:radial-gradient(ellipse at 50% 42%,#16244a 0%,{T.BACKGROUND} 72%)}}
+.bc-render-img{{display:block;width:100%;height:100%;object-fit:contain}}
+.bc-render svg.bc-render-layer,.bc-plate-art .bc-render svg.bc-render-layer{{position:absolute;inset:0;width:100%;
+  height:100%;max-height:none;pointer-events:none}}
+.bc-render-tall{{max-width:460px}}
+.bc-render-pair{{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:10px}}
+.bc-organ-img{{display:block;width:104px;height:104px;object-fit:contain;margin:0 auto 2px auto}}
+.bc-glyph img.bc-organ-icon{{width:44px;height:44px;object-fit:contain}}
 .bc-plate figcaption{{margin-top:12px;color:{T.INK_2};font-size:.9375rem;line-height:1.55}}
 .bc-plate figcaption p{{margin:.35em 0}}
 .bc-plate figcaption ul,.bc-plate figcaption ol{{margin:.3em 0 .4em 1.2em;padding:0}}

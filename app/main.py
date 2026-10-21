@@ -62,7 +62,7 @@ from src.signals.hrv_tools import POINCARE_CITATION, RR_PLAUSIBLE_MS, parse_rr_f
 from app.utils.design_system import (
     render_module_header, render_section_header, render_error_state, render_empty_state, BADGES,
     inject_global_theme, resolve_metric_card, render_metric_card, render_plate,
-    brand_block_html, session_status_html,
+    brand_block_html, session_status_html, ai_engine_caption, ai_engine_status, render_ai_engine_off_notice,
 )
 from app.utils.patient_session import (
     get_active_patient_display_name,
@@ -228,6 +228,12 @@ HUBS = {
         # (app.clinical_db) sin tocar — solo se movió la entrada de menú.
         "👥 Patient Pipeline",
     ],
+    # 2026-10-21: modelos 3D con datos reales y con los datos de la persona
+    # (tomografía/resonancia -> STL, VCG, EEG sobre la cabeza, tabla de
+    # pacientes -> mapa 3D con aprendizaje automático). Ver CHANGELOG.md.
+    "Laboratorio 3D": [
+        "🧊 Crea tu modelo 3D",
+    ],
 }
 PAGE_TABS = [page for pages in HUBS.values() for page in pages]
 
@@ -330,13 +336,10 @@ def render_findings_narrator(lab_name: str, findings: List[Tuple[str, str, str]]
     )
 
     if not is_configured():
-        st.warning(
-            "`ANTHROPIC_API_KEY` no está configurada. Este narrador llama a la API real de "
-            "Anthropic con streaming — no existe una narración simulada de respaldo."
-        )
+        render_ai_engine_off_notice()
         return
 
-    st.caption("Interpreta las métricas ya calculadas arriba — no genera datos nuevos.")
+    st.caption("Interpreta las métricas ya calculadas arriba — no genera datos nuevos. " + ai_engine_caption())
     if st.button("🗣️ Explicar estos hallazgos", key=f"findings_narrator_{lab_name}"):
         context = FindingsContext(lab_name=lab_name, findings=[Finding(*f) for f in findings])
         try:
@@ -349,8 +352,8 @@ def render_findings_narrator(lab_name: str, findings: List[Tuple[str, str, str]]
             # 4. Antes exponía `{exc}` crudo (puede incluir detalle interno
             # de la respuesta HTTP de la API).
             render_error_state(
-                "No se pudo completar la narración -- la llamada a la API de Anthropic falló "
-                "(red o cuota). Intenta de nuevo en unos segundos.",
+                "No se pudo completar la narración: el motor de IA no respondió (¿sigue abierto Ollama? "
+                "¿hay red o cuota para Claude?). Intenta de nuevo en unos segundos.",
                 exception=exc,
             )
 
@@ -491,6 +494,11 @@ def render_calculators_page() -> None:
     run_calculators()
 
 
+def render_model3d_page() -> None:
+    from app.supermodules.model3d.pages import run as run_model3d
+    run_model3d()
+
+
 def render_page_content(page: str) -> None:
     # Bloque 1 (2026-08-09, ver CHANGELOG.md): el "else" que llamaba a
     # render_home_page() se retiró -- `page` siempre viene de
@@ -523,6 +531,8 @@ def render_page_content(page: str) -> None:
             render_calculators_page()
         elif "Patient Pipeline" in page:
             render_patient_pipeline_page()
+    elif page in HUBS["Laboratorio 3D"]:
+        render_model3d_page()
 
 def render_metrics_grid(metrics_data: List[Dict]):
     cols = st.columns(len(metrics_data))
@@ -2767,15 +2777,39 @@ HUB_ICONS = {
     "Digital Twin OS": ":material/accessibility_new:",
     "Learning Hub": ":material/school:",
     "Clinical Hub": ":material/stethoscope:",
+    "Laboratorio 3D": ":material/view_in_ar:",
 }
 
 
 def _narrator_ready() -> bool:
+    eng = ai_engine_status()
+    return bool(eng is not None and eng.ready)
+
+
+def render_ai_engine_settings() -> None:
+    """Motor de IA (2026-10-21): local gratis (Ollama/compatible) o Claude.
+    La elección se guarda en la sesión y se aplica con `providers.configure()`."""
     try:
-        from domain.physiology.narrator.client import is_configured
-        return bool(is_configured())
+        from domain.physiology.narrator import providers
     except Exception:
-        return False
+        return
+    pref = st.session_state.get("ai_provider", providers.provider_preference())
+    with st.sidebar.expander("Motor de IA", icon=":material/smart_toy:"):
+        pref = st.segmented_control("Motor", list(providers.PROVIDERS), format_func=providers.PROVIDER_LABELS.get,
+                                    default=pref, key="ai_provider_choice", label_visibility="collapsed") or "auto"
+        st.session_state["ai_provider"] = pref
+        api, models = providers.probe_local()
+        model = st.session_state.get("ai_local_model")
+        if models:
+            model = st.selectbox("Modelo local", list(models),
+                                 index=list(models).index(model) if model in models else 0, key="ai_local_model_box")
+            st.session_state["ai_local_model"] = model
+        providers.configure(provider=pref, model=model if models else None)
+        eng = providers.resolve()
+        st.caption(eng.detail)
+        if not models:
+            st.caption("IA gratis sin claves: instala Ollama (ollama.com), abre una terminal y ejecuta "
+                       "`ollama pull qwen2.5:7b`. Con Ollama abierto, BIOCORE lo detecta solo.")
 
 
 def render_sidebar():
@@ -2801,6 +2835,7 @@ def render_sidebar():
     st.session_state.selected_page = selected_page
 
     st.sidebar.divider()
+    render_ai_engine_settings()
     # El estado se escribe DESPUÉS de dibujar la página (ver main()): así ya
     # refleja el gemelo/paciente que la página acaba de crear, y sigue
     # apareciendo aquí arriba, antes de los controles propios de cada lab.
@@ -2812,8 +2847,13 @@ def render_sidebar():
 def render_session_status(slot) -> None:
     twin_active = 'twin_shell_organism' in st.session_state
     patient = get_active_patient_display_name() if 'twin_shell_ups_patient_id' in st.session_state else None
+    eng = ai_engine_status()
+    engine_text = ""
+    if eng is not None and eng.ready:
+        engine_text = (f"Conectado: {eng.label}, gratis en tu computadora." if eng.provider == "local"
+                       else f"Conectado: {eng.label}.")
     slot.markdown(
-        session_status_html(twin_active, _narrator_ready(), patient_name=patient),
+        session_status_html(twin_active, _narrator_ready(), patient_name=patient, engine_text=engine_text),
         unsafe_allow_html=True,
     )
 

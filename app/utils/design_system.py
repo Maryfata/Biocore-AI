@@ -367,10 +367,45 @@ def render_error_state(message: str, exception: Optional[BaseException] = None) 
 
 
 AI_FEEDBACK_OFF_MESSAGE = (
-    "Sin `ANTHROPIC_API_KEY`: la calificación funciona igual (la decide el código, no la IA); "
-    "solo el feedback narrado queda desactivado. Para activarlo, copia `.env.example` a `.env` "
-    "y escribe tu clave."
+    "Sin motor de IA: la calificación funciona igual (la decide el código, no la IA); solo el "
+    "feedback narrado queda apagado. Para activarlo gratis, instala Ollama (ollama.com) y descarga un "
+    "modelo con <code>ollama pull qwen2.5:7b</code>: BIOCORE lo detecta solo, sin claves. También "
+    "puedes usar Claude con tu clave en <code>.env</code>."
 )
+AI_ENGINE_OFF_MESSAGE = (
+    "La IA está apagada porque no hay ningún motor disponible. <b>Opción gratis y privada:</b> instala "
+    "Ollama (ollama.com), ejecuta <code>ollama pull qwen2.5:7b</code> y deja Ollama abierto; BIOCORE lo "
+    "detecta solo y el texto se genera en tu computadora. También puedes usar Claude con "
+    "<code>ANTHROPIC_API_KEY</code> en <code>.env</code>. Lo demás de la app funciona igual: no hay "
+    "texto fingido de respaldo."
+)
+
+
+def ai_engine_status():
+    """Motor de IA activo (`domain/physiology/narrator/providers.py`)."""
+    try:
+        from domain.physiology.narrator import providers
+
+        return providers.resolve()
+    except Exception:  # pragma: no cover - el narrador siempre está en el repo
+        return None
+
+
+def ai_engine_caption() -> str:
+    eng = ai_engine_status()
+    if eng is None or not eng.ready:
+        return ""
+    where = "en tu computadora, sin enviar datos" if eng.provider == "local" else "con la API de Anthropic"
+    return f"Texto generado por {eng.label} {where}, solo con los datos de arriba. Puede equivocarse."
+
+
+def render_ai_engine_off_notice() -> None:
+    """La IA es opcional: aviso informativo con el camino gratuito."""
+    st.markdown(
+        f"<div style='border-left:3px solid {PALETTE.NEUTRAL}; padding:8px 12px; margin:4px 0 10px 0; "
+        f"color:{PALETTE.TEXT}; font-size:0.94rem; line-height:1.5;'>{AI_ENGINE_OFF_MESSAGE}</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def render_ai_feedback_off_notice() -> None:
@@ -381,7 +416,7 @@ def render_ai_feedback_off_notice() -> None:
     no se muestra ningún texto "como si" fuera IA, solo este aviso."""
     st.markdown(
         f"<div style='border-left:3px solid {PALETTE.NEUTRAL}; padding:6px 12px; margin:4px 0 10px 0; "
-        f"color:{PALETTE.TEXT}; opacity:0.9; font-size:0.92rem;'>ℹ️&nbsp;&nbsp;{AI_FEEDBACK_OFF_MESSAGE}</div>",
+        f"color:{PALETTE.TEXT}; opacity:0.9; font-size:0.92rem;'>{AI_FEEDBACK_OFF_MESSAGE}</div>",
         unsafe_allow_html=True,
     )
 
@@ -667,7 +702,8 @@ def brand_block_html() -> str:
     )
 
 
-def session_status_html(twin_active: bool, narrator_ready: bool, patient_name: Optional[str] = None) -> str:
+def session_status_html(twin_active: bool, narrator_ready: bool, patient_name: Optional[str] = None,
+                        engine_text: str = "") -> str:
     """Estado útil de la sesión para la barra lateral (reemplaza los textos
     de relleno "Control universal"/"Modo plataforma"). El color nunca va
     solo: cada punto lleva su texto."""
@@ -685,8 +721,8 @@ def session_status_html(twin_active: bool, narrator_ready: bool, patient_name: O
         '<div class="bc-status">'
         + row(twin_active, "Gemelo digital", patient_text or "Simulación activa en esta sesión.",
               "Se crea al abrir Digital Twin OS.")
-        + row(narrator_ready, "Narrador clínico IA", "Conectado (ANTHROPIC_API_KEY).",
-              "Sin clave: todo lo demás funciona igual.")
+        + row(narrator_ready, "Narrador clínico IA", engine_text or "Conectado.",
+              "Apagado: todo lo demás funciona; IA gratis con Ollama.")
         + '<div class="bc-status-row"><span class="bc-dot" style="background:transparent"></span>'
         '<span>El narrador vive en Digital Twin OS, en Herramientas avanzadas.</span></div>'
         + "</div>"

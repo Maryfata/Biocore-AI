@@ -28,7 +28,10 @@ def render_views():
     # estructura, R1/R3). "Educativa" se llenó con un puntero honesto a la
     # tabla real de 12 derivaciones (Academia Clinica), no una lección
     # fabricada. Ver CHANGELOG.md.
-    tabs = st.tabs(["Clínica", "Educativa"])
+    # 2026-10-21: "Vectocardiograma 3D" -- el VCG del ECG de la Vista
+    # Clínica, de un CSV propio o de una paciente real del PTB (con sus
+    # derivaciones de Frank registradas para comparar).
+    tabs = st.tabs(["Clínica", "Educativa", "Vectocardiograma 3D"])
 
     with tabs[0]:
         render_section_header("Vista Clínica — ECG 12 Derivaciones")
@@ -57,6 +60,19 @@ def render_views():
             "territorio, cara afectada) está disponible en **Learning Hub → 🏫 Academia Clinica → "
             "Lecciones y Casos → 📖 Teoría**; todas las láminas, en **Atlas visual**."
         )
+
+    with tabs[2]:
+        render_section_header("Vectocardiograma 3D")
+        st.markdown(
+            "El ECG mira el corazón desde 12 ángulos; el vectocardiograma junta esa información en una sola "
+            "flecha que gira en el espacio durante el latido. Aquí se reconstruye con la matriz de Kors."
+        )
+        try:
+            from app.supermodules.model3d.panels import render_vcg_panel
+
+            render_vcg_panel("ecg12_vcg", default_source="ptb", allow_clinical=True)
+        except Exception as e:  # noqa: BLE001
+            render_error_state("No se pudo dibujar el vectocardiograma.", exception=e)
 
 
 def main():

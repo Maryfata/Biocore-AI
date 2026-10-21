@@ -132,3 +132,11 @@ _archive/
 # Exportaciones generadas desde la app (botones "Exportar CSV / notebook")
 datasets/exports/
 notebooks/exports/
+
+# ── Renders 3D (tools/render_anatomy): dependencias e intermedios ──
+# Se regeneran con los pasos de tools/README.md; lo que usa la app ya está
+# publicado en app/static/anatomy/.
+tools/render_anatomy/node_modules/
+tools/render_anatomy/meshes/
+tools/render_anatomy/out/
+tools/render_anatomy/specs/

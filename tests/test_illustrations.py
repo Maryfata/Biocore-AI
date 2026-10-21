@@ -4,9 +4,10 @@ Qué se protege:
 - Cada SVG es XML válido y accesible (role="img" + <title> enlazado).
 - La salida es determinista y segura para `st.markdown` (sin líneas en
   blanco ni signos de pesos, que Markdown/LaTeX reinterpretarían).
-- Honestidad: las láminas dicen "Esquema ilustrativo", llevan fuentes, y los
-  números que rotulan salen del propio código (intervalos MEDIDOS sobre el
-  latido dibujado, límites de banda del analizador EEG, fórmulas de HRV).
+- Honestidad: cada lámina dice qué es (registro real, anatomía real de una
+  tomografía, esquema o simulación), lleva fuentes, y los números que rotula
+  salen del propio código (intervalos MEDIDOS sobre el latido real, límites
+  de banda del analizador EEG, fórmulas de HRV sobre RR reales).
 - Los colores de estado clínico no se usan como decoración.
 - Contraste WCAG de los tokens de la interfaz, calculado.
 - Integración: cada laboratorio dibuja su lámina (AppTest).
@@ -30,10 +31,9 @@ from visualization.art import (
 from visualization.art import tokens as T
 from visualization.art import waves
 from visualization.art.meters import news2_meter_svg
-from visualization.art.plates import (
-    EEG_1020_POSITIONS, TACHOGRAM_EXAMPLE_RR_MS, hrv_example_metrics, respiratory_gallery_html,
-    respiratory_traces,
-)
+from visualization.art.plates import hrv_metrics, respiratory_gallery_html, respiratory_traces
+from visualization.art.strips import REAL_SOURCES
+from visualization.art import renders as R
 
 ROOT = Path(__file__).resolve().parents[1]
 SVG_RE = re.compile(r"<svg\b.*?</svg>", re.S)
@@ -81,7 +81,12 @@ def test_every_strip_is_valid_accessible_and_safe(kind):
     svg = signal_strip_svg(kind)
     _assert_accessible(svg)
     _markdown_safe(svg)
-    assert "Esquema ilustrativo" in svg
+    if kind in REAL_SOURCES:
+        # 2026-10-21: registro real de PhysioNet, dicho en el título y visible.
+        assert "Registro real" in svg and "ODC-By 1.0" in svg
+        assert REAL_SOURCES[kind][1] in svg
+    else:
+        assert "Esquema ilustrativo" in svg
     assert signal_strip_svg(kind) == svg, "la tira debe ser determinista"
 
 
@@ -123,10 +128,16 @@ def test_every_plate_renders_valid_svg_with_label_and_sources(key):
     html = plate_figure_html(key)
     _markdown_safe(html)
     assert html.startswith("<figure") and f'id="lamina-{key}"' in html
-    assert "Esquema ilustrativo" in html
-    assert "Fuentes" in html and PLATES[key].sources
-    for svg in _svgs(html):
+    plate = PLATES[key]
+    assert plate.chip in ("Esquema ilustrativo", "Registro real", "Anatomía real (TC)", "Corazón real + esquema",
+                          "Cabeza 3D (plantilla)", "Simulación del laboratorio")
+    assert f'<span class="bc-chip">{plate.chip}</span>' in html, "la etiqueta dice qué es la imagen"
+    assert "Fuentes" in html and plate.sources
+    svgs = SVG_RE.findall(html)
+    for svg in svgs:
         _assert_accessible(svg)
+    if not svgs:  # render sin capa: la imagen lleva su texto alternativo
+        assert re.search(r'<img [^>]*alt="[^"]{20,}"', html)
     assert plate_figure_html(key) == html, "la lámina debe ser determinista"
 
 
@@ -143,14 +154,40 @@ def test_decorative_art_never_uses_clinical_status_colors():
             assert color not in low, f"{color} apareció en arte decorativo"
 
 
-def test_ecg_plate_labels_intervals_measured_on_the_drawn_beat():
-    iv = waves.beat_intervals()
-    assert 0.120 <= iv["PR"] <= 0.200, "PR del latido modelo fuera del rango de referencia"
-    assert iv["QRS"] < 0.120, "QRS del latido modelo debe ser estrecho"
-    assert 0.35 <= iv["QT"] <= 0.45
+def test_ecg_plate_labels_intervals_measured_on_the_real_beat():
+    from src.signals.ecg.beat_delineation import reference_beat
+
+    from clinical.calculators import qtc_bazett
+
+    beat, d = reference_beat()
+    assert beat.n_beats >= 100, "latido mediano de muchos latidos normales anotados"
+    # MIT-BIH 100 (MLII): T baja, ancha y tardía -- sin onda U según la
+    # anotación de Elgendi et al. (Sensors 2015), así que el QT es largo.
+    assert 120 <= d.pr_ms <= 220 and 50 <= d.qrs_ms < 120 and 450 <= d.qt_ms <= 560
     html = plate_figure_html("ecg_complex")
-    for key in ("PR", "QRS", "QT"):
-        assert f"{key} {iv[key] * 1000:.0f} ms" in html, f"el rótulo de {key} debe ser el valor medido"
+    for key, val in (("PR", d.pr_ms), ("QRS", d.qrs_ms), ("QT", d.qt_ms)):
+        assert f"{key} {val:.0f} ms" in html, f"el rótulo de {key} debe ser el valor medido"
+    qtc = qtc_bazett(d.qt_ms, beat.rr_ms / 1000.0)
+    assert f"QTc {qtc:.0f} ms" in html and "prolongado" in html, "el QTc se dice, con la misma fórmula de la app"
+    assert "MIT-BIH" in html and "Registro real" in html
+
+
+def test_t_wave_end_does_not_depend_on_quantization_noise():
+    """El fin de T sale de la pendiente de la onda, no del escalón de 0.005 mV
+    del registro (antes, sin suavizar, salía 50 ms antes), y la onda T no
+    salta a la muesca del ST desnivelado: con ruido del orden de la
+    cuantización (0.005/√12 mV) el pico de T se queda en su lugar."""
+    from dataclasses import replace
+
+    from src.signals.ecg.beat_delineation import delineate, reference_beat
+
+    beat, d = reference_beat()
+    rng = np.random.default_rng(7)
+    for _ in range(10):
+        n = delineate(replace(beat, v=beat.v + rng.normal(0, 0.0015, beat.v.size)))
+        assert abs(n.t_peak - d.t_peak) < 20
+        assert abs(n.t_off - d.t_off) < 25
+        assert abs(n.qrs_on - d.qrs_on) < 10
 
 
 @pytest.mark.parametrize("part", ["P", "PR", "QRS", "ST", "T", "QT"])
@@ -187,14 +224,18 @@ def test_eeg_band_limits_refactor_kept_the_same_values():
 def test_eeg_1020_plate_highlights_only_known_channels():
     html = plate_figure_html("eeg_1020", active=("Fp1", "C4", "canal_raro"))
     assert "resaltados Fp1, C4" in html
-    assert {"Fp1", "Fp2", "C3", "C4", "Cz", "O1", "O2"} <= set(EEG_1020_POSITIONS)
+    anchors = R.anchors("atlas_1020_top")
+    assert {"Fp1", "Fp2", "C3", "C4", "Cz", "O1", "O2"} <= set(anchors) and len(anchors) == 21
 
 
-def test_tachogram_example_uses_the_hrv_page_formulas():
-    rr = np.asarray(TACHOGRAM_EXAMPLE_RR_MS)
-    m = hrv_example_metrics()
+def test_tachogram_uses_real_rr_and_the_hrv_page_formulas():
+    from src.signals.reference_recordings import normal_rr_ms
+
+    rr = normal_rr_ms(max_beats=2000)
+    m = hrv_metrics(rr)
     assert m["sdnn"] == pytest.approx(np.std(rr, ddof=1))
     assert m["rmssd"] == pytest.approx(np.sqrt(np.mean(np.diff(rr) ** 2)))
+    assert 600 < m["mean"] < 1000 and m["n"] > 300
     html = plate_figure_html("tachogram")
     assert f"SDNN {m['sdnn']:.0f} ms" in html and f"RMSSD {m['rmssd']:.0f} ms" in html
 
@@ -361,14 +402,15 @@ def test_academia_atlas_shows_every_plate(ups):
         ":material/smart_toy: Tutor IA"]
 
 
-def test_twin_os_organ_cards_are_drawn_with_status_colors(ups):
-    _, html = _run("app.supermodules.twin_shell.pages.run", ups)
+def test_twin_os_organ_cards_show_real_anatomy_with_status_colors(ups):
+    at, html = _run("app.supermodules.twin_shell.pages.run", ups)
     cards = [m for m in re.findall(r"<div class='bc-organ'.*?</div></div>", html, re.S)]
     assert len(cards) == 5
     for card in cards:
-        assert "<svg" in card
+        assert "<img" in card and ".webp" in card, "render de anatomía real, no un dibujo"
         assert any(c in card for c in (PALETTE.STABLE, PALETTE.WARNING, PALETTE.CRITICAL))
     assert 'id="lamina-conduction"' in html, "el panel del corazón muestra su lámina"
+    assert len(at.get("plotly_chart")) >= 1, "el cuerpo 3D interactivo"
 
 
 def test_calculators_mark_axis_on_hexaxial_plate_and_draw_news2_meter():

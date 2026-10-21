@@ -1,5 +1,6 @@
 """Tanda 2026-10-19: Calculadoras Clínicas, Academia sin clave de IA,
 Modo Rural, HRV desde archivo + Poincaré, organ grid alineado."""
+import re
 from pathlib import Path
 
 import pytest
@@ -111,7 +112,7 @@ def test_quiz_is_gradable_without_api_key(monkeypatch):
     assert not at.exception
     verdicts = [s.value for s in at.success] + [e.value for e in at.error]
     assert any("Correcto" in v or "respuesta correcta" in v for v in verdicts)
-    assert any("Sin `ANTHROPIC_API_KEY`" in m.value for m in at.markdown)
+    assert any("Sin motor de IA" in m.value for m in at.markdown)
 
 
 def test_synthetic_case_works_without_api_key(monkeypatch):
@@ -178,5 +179,8 @@ def test_organ_cards_have_fixed_height(monkeypatch):
     at.run()
     cards = [m.value for m in at.markdown if "border-radius: 18px" in m.value]
     assert len(cards) == 5
-    assert all("height: 150px" in c for c in cards)
+    # Misma altura fija en las cinco (2026-10-21: 196 px, para la imagen
+    # real del órgano); el valor exacto puede cambiar, la igualdad no.
+    heights = {re.search(r"height: (\d+)px", c).group(1) for c in cards}
+    assert len(heights) == 1
     assert not any("3px solid" in c for c in cards)  # la selección ya no engrosa el borde

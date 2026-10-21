@@ -7,6 +7,7 @@
 numpy>=1.23.0
 scipy>=1.10.0
 pandas>=1.5.0
+openpyxl>=3.1.0          # tablas de pacientes en Excel (.xlsx) en "Crea tu modelo 3D"
 scikit-learn>=1.3.0
 
 # Datos ECG (PhysioNet MIT-BIH / PTB-XL)
@@ -15,6 +16,14 @@ wfdb>=4.1.1
 # Visualización
 matplotlib>=3.7.0
 plotly>=5.10.0
+pillow>=9.0.0
+
+# Modelos 3D (2026-10-21): tomografía/resonancia -> superficie 3D
+# (marching cubes), lectura de NIfTI y DICOM, y simplificación de mallas.
+scikit-image>=0.22.0
+nibabel>=5.0.0
+pydicom>=2.4.0
+fast-simplification>=0.1.7
 
 # Interfaz — >=1.50 por width="stretch" (reemplaza use_container_width, retirado)
 streamlit>=1.50.0
@@ -22,7 +31,10 @@ streamlit>=1.50.0
 # Hardware ESP32/Arduino por puerto serie (hardware/)
 pyserial>=3.5.0
 
-# Narrador clínico (Fase 1.3) — domain/physiology/narrator/
+# Narrador clínico (Fase 1.3) — domain/physiology/narrator/. Desde el
+# 2026-10-21 el motor por defecto es una IA local gratuita (Ollama, sin
+# paquete de Python: se habla con su servidor por HTTP); `anthropic` solo se
+# usa si eliges Claude y tienes ANTHROPIC_API_KEY.
 anthropic>=0.40.0
 
 # Unified Physiological State (Fase 1.1) — SQLite vía SQLAlchemy

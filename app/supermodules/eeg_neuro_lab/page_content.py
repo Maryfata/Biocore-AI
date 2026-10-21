@@ -464,6 +464,11 @@ with col1:
         if motor_event is not None:
             mu_erd_panel.render_mu_erd_panel(eeg_data[display_leads[0]], display_leads[0], fs, time, motor_event)
 
+        # 2026-10-21: la potencia de cada canal sobre una cabeza 3D (10-20).
+        from app.supermodules.model3d.panels import render_eeg_lab_head_map
+
+        render_eeg_lab_head_map(analysis_cards, data_source)
+
 with col2:
     st.markdown("## 📊 Métricas y Clasificación")
     overall = analysis_cards[0][1] if analysis_cards else None
